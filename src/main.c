@@ -332,6 +332,7 @@ int main(int argc, char **argv) {
                           strcmp(discovered_cmd, "snapshot") == 0 ||
                           strcmp(discovered_cmd, "snapshots") == 0 ||
                           strcmp(discovered_cmd, "rollback") == 0 ||
+                          strcmp(discovered_cmd, "snapshot-delete") == 0 ||
                           strcmp(discovered_cmd, "enter") == 0 ||
                           strcmp(discovered_cmd, "run") == 0));
 
@@ -534,6 +535,12 @@ int main(int argc, char **argv) {
 
   if (strcmp(cmd, "snapshots") == 0) {
     ret = ds_snapshot_list(&cfg);
+    goto cleanup;
+  }
+
+  if (strcmp(cmd, "snapshot-delete") == 0) {
+    ret = ds_snapshot_delete(&cfg,
+                             optind + 1 < argc ? atoi(argv[optind + 1]) : 0);
     goto cleanup;
   }
 

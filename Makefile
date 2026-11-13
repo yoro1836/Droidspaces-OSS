@@ -52,6 +52,7 @@ SRCS = $(SRC_DIR)/main.c \
        $(SRC_DIR)/security/seccomp_shims.c \
        $(SRC_DIR)/rootfs/mount.c \
        $(SRC_DIR)/rootfs/image.c \
+       $(SRC_DIR)/rootfs/snapshot.c \
        $(SRC_DIR)/rootfs/volatile.c \
        $(SRC_DIR)/rootfs/binds.c \
        $(SRC_DIR)/dev/dev.c \

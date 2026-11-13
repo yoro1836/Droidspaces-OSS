@@ -25,26 +25,28 @@ void print_usage(void) {
          __DATE__ + 4 + (__DATE__[4] == ' '), __TIME__);
   printf("Usage: droidspaces [options] <command> [args]\n\n");
 
-  printf(C_BOLD
-         "Commands:" C_RESET "\n"
-         "  start                     Start a new container\n"
-         "  stop                      Stop one or more containers\n"
-         "  restart                   Restart a container\n"
-         "  enter [user]              Enter a running container\n"
-         "  run [--] <cmd> [args]     Run a command in a running container\n"
-         "  info                      Show detailed container info\n"
-         "  snapshot [LABEL]          Take a snapshot of a stopped container\n"
-         "  snapshots                 List snapshots\n"
-         "  rollback N                Go back to snapshot N\n"
-         "  pid                       Show the live PID of the container init\n"
-         "  show                      List all running containers\n"
-         "  scan                      Scan for untracked containers\n"
-         "  check                     Check system requirements\n"
-         "  docs                      Show interactive documentation\n"
-         "  help                      Show this help message\n"
-         "  version                   Show version information\n"
-         "  daemon                    Run daemon mode (use --foreground for "
-         "foreground execution)\n\n");
+  printf(
+      C_BOLD
+      "Commands:" C_RESET "\n"
+      "  start                     Start a new container\n"
+      "  stop                      Stop one or more containers\n"
+      "  restart                   Restart a container\n"
+      "  enter [user]              Enter a running container\n"
+      "  run [--] <cmd> [args]     Run a command in a running container\n"
+      "  info                      Show detailed container info\n"
+      "  snapshot [LABEL]          Take a snapshot of a stopped container\n"
+      "  snapshots                 List snapshots\n"
+      "  rollback N                Go back to snapshot N\n"
+      "  snapshot-delete N         Delete snapshot N, keep the current state\n"
+      "  pid                       Show the live PID of the container init\n"
+      "  show                      List all running containers\n"
+      "  scan                      Scan for untracked containers\n"
+      "  check                     Check system requirements\n"
+      "  docs                      Show interactive documentation\n"
+      "  help                      Show this help message\n"
+      "  version                   Show version information\n"
+      "  daemon                    Run daemon mode (use --foreground for "
+      "foreground execution)\n\n");
 
   printf(C_BOLD "Options (Container Setup):" C_RESET "\n"
                 "  -r, --rootfs=PATH         Path to rootfs directory\n"
