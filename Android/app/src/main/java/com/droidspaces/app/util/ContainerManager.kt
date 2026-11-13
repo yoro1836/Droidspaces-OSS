@@ -129,14 +129,9 @@ data class ContainerInfo(
             if (gatewayBridge.isNotBlank()) appendLine("gateway_bridge=$gatewayBridge")
         }
         // Bridge is the runtime's default, so only the other modes are written.
-        if (netMode == "ipvlan") {
-            if (macvlanParent.isNotBlank()) appendLine("ipvlan_parent=$macvlanParent")
-            if (macvlanMode == "l3") appendLine("ipvlan_mode=l3")
-        }
         if (netMode == "macvlan") {
             if (macvlanParent.isNotBlank()) appendLine("macvlan_parent=$macvlanParent")
-            // The field is shared with ipvlan, whose l2/l3 mean nothing here.
-            if (macvlanMode in listOf("private", "vepa", "passthru")) appendLine("macvlan_mode=$macvlanMode")
+            if (macvlanMode.isNotBlank() && macvlanMode != "bridge") appendLine("macvlan_mode=$macvlanMode")
         }
         appendLine("use_sparse_image=${if (useSparseImage) "1" else "0"}")
         if (sparseImageSizeGB != null) {
@@ -412,8 +407,8 @@ object ContainerManager {
                 gatewayNet = configMap["gateway_net"] ?: "",
                 gatewayIface = configMap["gateway_lan_ifname"] ?: "",
                 gatewayBridge = configMap["gateway_bridge"] ?: "",
-                macvlanParent = configMap["macvlan_parent"] ?: configMap["ipvlan_parent"] ?: "",
-                macvlanMode = configMap["macvlan_mode"] ?: configMap["ipvlan_mode"] ?: "",
+                macvlanParent = configMap["macvlan_parent"] ?: "",
+                macvlanMode = configMap["macvlan_mode"] ?: "",
                 privileged = configMap["privileged"] ?: "",
                 customInit = configMap["custom_init"] ?: "",
                 memoryLimit = configMap["memory_limit"]?.toLongOrNull() ?: 0,
