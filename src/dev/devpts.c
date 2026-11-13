@@ -26,12 +26,19 @@ static void fix_foreign_gid(const char *pts_path) {
   if (!foreign)
     return;
 
-  snprintf(opts, sizeof(opts), "gid=%u,ptmxmode=0666,mode=0620",
+  /* A fresh mount, not a remount: that kernel refuses the remount to a user
+   * namespace. Nothing holds a pty of the instance we drop yet. */
+  snprintf(opts, sizeof(opts), "gid=%u,newinstance,ptmxmode=0666,mode=0620",
            DS_USERNS_BASE + DS_DEFAULT_TTY_GID);
-  if (mount("devpts", pts_path, "devpts", MS_REMOUNT | MS_NOSUID | MS_NOEXEC,
-            opts) < 0)
-    ds_warn("Failed to give ptys to the container's tty group: %s",
-            strerror(errno));
+  umount2(pts_path, MNT_DETACH);
+  if (mount("devpts", pts_path, "devpts", MS_NOSUID | MS_NOEXEC, opts) == 0)
+    return;
+  ds_warn("Failed to give ptys to the container's tty group: %s",
+          strerror(errno));
+  snprintf(opts, sizeof(opts), "gid=%d,newinstance,ptmxmode=0666,mode=0620",
+           DS_DEFAULT_TTY_GID);
+  if (mount("devpts", pts_path, "devpts", MS_NOSUID | MS_NOEXEC, opts) < 0)
+    ds_warn("Failed to mount devpts again: %s", strerror(errno));
 }
 
 int setup_devpts(int hw_access) {
