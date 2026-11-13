@@ -333,6 +333,8 @@ int main(int argc, char **argv) {
                           strcmp(discovered_cmd, "snapshots") == 0 ||
                           strcmp(discovered_cmd, "rollback") == 0 ||
                           strcmp(discovered_cmd, "snapshot-delete") == 0 ||
+                          strcmp(discovered_cmd, "image-mount") == 0 ||
+                          strcmp(discovered_cmd, "image-umount") == 0 ||
                           strcmp(discovered_cmd, "enter") == 0 ||
                           strcmp(discovered_cmd, "run") == 0));
 
@@ -535,6 +537,25 @@ int main(int argc, char **argv) {
 
   if (strcmp(cmd, "snapshots") == 0) {
     ret = ds_snapshot_list(&cfg);
+    goto cleanup;
+  }
+
+  /* For the app's export: the rootfs of a stopped image container as it
+   * would boot, snapshot layers included, which a plain loop mount of the
+   * image would leave out. Prints where it is. */
+  if (strcmp(cmd, "image-mount") == 0 || strcmp(cmd, "image-umount") == 0) {
+    char mnt[PATH_MAX];
+    ret = 1;
+    if (!cfg.rootfs_img_path[0] || is_container_running(&cfg, NULL)) {
+      ds_error("'%s' is running or has no rootfs image.", cfg.container_name);
+    } else if (strcmp(cmd, "image-umount") == 0) {
+      if (ds_img_mount_point(cfg.container_name, mnt, sizeof(mnt)) == 0)
+        ret = unmount_rootfs_img(mnt, 1);
+    } else if (mount_rootfs_img(cfg.rootfs_img_path, mnt, sizeof(mnt),
+                                cfg.container_name) == 0) {
+      printf("%s\n", mnt);
+      ret = 0;
+    }
     goto cleanup;
   }
 
