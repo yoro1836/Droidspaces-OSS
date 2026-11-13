@@ -27,7 +27,6 @@ A change takes effect the next time the container starts. In the app, the contai
 | **NAT** | Its own network stack and a private address, with internet through the host. Nothing to set up. The host's active connection is followed as it changes between Wi-Fi, mobile data and Ethernet. | You want a container that just has internet. This is the right choice for almost everything. |
 | **Gateway** | Its own network stack, on a LAN owned by another running container, usually OpenWrt, which does DHCP, DNS, firewalling, routing and VPN for it. | You want a VPN kill switch, DNS filtering, or several containers on one isolated LAN behind one router. |
 | **Macvlan** | Its own MAC address on a wired network the phone is plugged into, and an address from that network's router. No NAT. | The container should be a first-class device on your home LAN, reachable without port forwarding. Needs a USB Ethernet adapter on a phone. |
-| **Ipvlan** | An address of its own on the network of any host interface, Wi-Fi included, sent with that interface's MAC. No NAT. `--ipvlan-parent=wlan0`, `--ipvlan-mode=l2\|l3`. | The same as macvlan when the phone is on Wi-Fi, where an access point drops a second MAC. The router must tell phone and container apart by DHCP client id, or the container needs a static address. |
 | **Host** | The host's own network stack, shared. | A program needs an interface only the host has. Services bind host ports directly, and a network manager inside the container can break the phone's connectivity. |
 | **None** | A network stack with only loopback. | The container must be offline. |
 
@@ -55,7 +54,7 @@ A change takes effect the next time the container starts. In the app, the contai
 
 ### DNS Servers
 
-`--dns=SERVER[,SERVER...]`, key `dns_servers`. Without it, NAT, host and none mode containers use Cloudflare and Google's public resolvers. Gateway, macvlan and ipvlan containers use whatever DNS their LAN's DHCP server hands out, which is what you want when the gateway filters ads or resolves local names, so set this only to override that on purpose.
+`--dns=SERVER[,SERVER...]`, key `dns_servers`. Without it, NAT, host and none mode containers use Cloudflare and Google's public resolvers. Gateway and macvlan containers use whatever DNS their LAN's DHCP server hands out, which is what you want when the gateway filters ads or resolves local names, so set this only to override that on purpose.
 
 ## Integration and hardware
 

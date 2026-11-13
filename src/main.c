@@ -270,7 +270,7 @@ int main(int argc, char **argv) {
       int mode = ds_parse_net_mode(optarg);
       if (mode < 0) {
         ds_error("Unknown network mode: '%s'. Valid options: host, nat, none, "
-                 "gateway, macvlan, ipvlan",
+                 "gateway, macvlan",
                  optarg);
         ret = 1;
         goto cleanup;

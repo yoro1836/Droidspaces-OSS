@@ -351,8 +351,7 @@ reboot_loop:;
           ds_warn("[NET] Monitor: setup_gateway_veth_side failed - "
                   "container will remain isolated");
         }
-      } else if (cfg->net_mode == DS_NET_MACVLAN ||
-                 cfg->net_mode == DS_NET_IPVLAN) {
+      } else if (cfg->net_mode == DS_NET_MACVLAN) {
         ds_net_macvlan_wire(cfg, netns_pid, 1);
       }
 
@@ -502,9 +501,7 @@ reboot_loop:;
 
         /* A macvlan dies with its parent NIC, so keep checking for good:
          * a replugged USB adapter gets the container's eth0 back. */
-        if ((cfg->net_mode == DS_NET_MACVLAN ||
-             cfg->net_mode == DS_NET_IPVLAN) &&
-            ++net_tick % 4 == 0)
+        if (cfg->net_mode == DS_NET_MACVLAN && ++net_tick % 4 == 0)
           ds_net_macvlan_wire(cfg, cfg->container_pid, 0);
       }
 

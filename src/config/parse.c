@@ -20,8 +20,6 @@ int ds_parse_net_mode(const char *s) {
     return DS_NET_GATEWAY;
   if (strcmp(s, "macvlan") == 0)
     return DS_NET_MACVLAN;
-  if (strcmp(s, "ipvlan") == 0)
-    return DS_NET_IPVLAN;
   return -1;
 }
 
@@ -30,9 +28,9 @@ const char *ds_net_mode_name(enum ds_net_mode mode) {
   static const char *const names[] = {
       [DS_NET_NAT] = "nat",         [DS_NET_HOST] = "host",
       [DS_NET_NONE] = "none",       [DS_NET_GATEWAY] = "gateway",
-      [DS_NET_MACVLAN] = "macvlan", [DS_NET_IPVLAN] = "ipvlan",
+      [DS_NET_MACVLAN] = "macvlan",
   };
-  return mode >= DS_NET_NAT && mode <= DS_NET_IPVLAN ? names[mode] : "host";
+  return mode >= DS_NET_NAT && mode <= DS_NET_MACVLAN ? names[mode] : "host";
 }
 
 static const struct {

@@ -232,9 +232,7 @@ static void print_page(int page, const char *bin) {
     p_printf("  --net=gateway  LAN delegated to another container "
              "(e.g. OpenWrt)\n");
     p_printf("  --net=macvlan  Straight onto a wired LAN through a host NIC "
-             "(USB Ethernet)\n");
-    p_printf("  --net=ipvlan   Straight onto the LAN of any host NIC, Wi-Fi "
-             "included\n\n");
+             "(USB Ethernet)\n\n");
 
     p_printf("%sNAT Mode Configuration:%s\n", bold, reset);
     p_printf("  %s --name=mycontainer --rootfs=/path/to/rootfs --net=nat "
@@ -292,20 +290,6 @@ static void print_page(int page, const char *bin) {
     p_printf("  --macvlan-parent=IF    Host NIC to attach to (required)\n");
     p_printf("  --macvlan-mode=MODE    bridge (default), private, vepa, "
              "passthru\n\n");
-
-    p_printf("%sIpvlan Mode Configuration:%s\n", bold, reset);
-    p_printf("  Like macvlan, but the container sends with the host NIC's own "
-             "MAC, so a\n");
-    p_printf("  Wi-Fi access point accepts it. Needs CONFIG_IPVLAN. The DHCP "
-             "server sees one\n");
-    p_printf("  MAC for phone and container and must tell them apart by "
-             "client id; where\n");
-    p_printf("  it cannot, give the container a static address.\n");
-    p_printf("  %s --name=ubuntu --rootfs=/path/to/ubuntu --net=ipvlan "
-             "--ipvlan-parent=wlan0 start\n",
-             bin);
-    p_printf("  --ipvlan-parent=IF     Host NIC to attach to (required)\n");
-    p_printf("  --ipvlan-mode=MODE     l2 (default), l3\n\n");
 
     p_printf("%sPort Forwarding (NAT only):%s\n", bold, reset);
     p_printf("  --port=8080:80          Single port\n");

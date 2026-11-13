@@ -53,8 +53,7 @@ int start_rootfs_locked(struct ds_config *cfg, int *lock_fd, int reuse_mount) {
 
   /* Here and not with the other network checks in main.c: a restart reloads
    * its config after those ran, and this is the one both paths go through. */
-  if ((cfg->net_mode == DS_NET_MACVLAN || cfg->net_mode == DS_NET_IPVLAN) &&
-      ds_net_macvlan_check(cfg) < 0)
+  if (cfg->net_mode == DS_NET_MACVLAN && ds_net_macvlan_check(cfg) < 0)
     return -1;
 
   if (ds_userns_check_config(cfg) < 0)

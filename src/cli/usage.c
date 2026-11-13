@@ -54,7 +54,7 @@ void print_usage(void) {
       C_BOLD
       "Options (Networking):" C_RESET "\n"
       "      --net=MODE            Modes: nat (default), host, none, gateway, "
-      "macvlan, ipvlan\n"
+      "macvlan\n"
       "      --gateway=NAME        Gateway container for --net=gateway\n"
       "      --gateway-net=NAME    Gateway LAN name/bridge suffix (default: "
       "lan)\n"
@@ -64,8 +64,6 @@ void print_usage(void) {
       "ds-NAME)\n"
       "      --macvlan-parent=IF   Host NIC for --net=macvlan, e.g. eth0\n"
       "      --macvlan-mode=MODE   bridge (default), private, vepa, passthru\n"
-      "      --ipvlan-parent=IF    Host NIC for --net=ipvlan, e.g. wlan0\n"
-      "      --ipvlan-mode=MODE    l2 (default), l3\n"
       "      --nat-ip=IP           Assign a fixed IP in 172.28.*.* range (nat "
       "mode)\n"
       "      --upstream IFACE      Pin NAT WAN to interface(s); disables "

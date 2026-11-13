@@ -110,8 +110,7 @@ static void setup_resolv_conf(struct ds_config *cfg) {
    * serves the LAN (OpenWrt's dnsmasq, a home router), advertised in the DHCP
    * lease.  Droidspaces must NOT write a static resolv.conf or it would bypass
    * that DNS and its filtering/caching. */
-  if ((cfg->net_mode == DS_NET_GATEWAY || cfg->net_mode == DS_NET_MACVLAN ||
-       cfg->net_mode == DS_NET_IPVLAN) &&
+  if ((cfg->net_mode == DS_NET_GATEWAY || cfg->net_mode == DS_NET_MACVLAN) &&
       !cfg->dns_servers[0]) {
     if (is_systemd_rootfs("/")) {
       /* systemd-resolved consumes the lease and publishes the real resolver. */
@@ -188,8 +187,7 @@ int fix_networking_rootfs(struct ds_config *cfg) {
     }
     write_file("/proc/sys/net/ipv6/conf/all/disable_ipv6", "1");
     write_file("/proc/sys/net/ipv6/conf/default/disable_ipv6", "1");
-  } else if (cfg->net_mode == DS_NET_NAT || cfg->net_mode == DS_NET_MACVLAN ||
-             cfg->net_mode == DS_NET_IPVLAN) {
+  } else if (cfg->net_mode == DS_NET_NAT || cfg->net_mode == DS_NET_MACVLAN) {
     /* Docker and friends turn on forwarding inside the container, and the
      * kernel then ignores RAs (ours, or the LAN router's) unless accept_ra is
      * 2. Without this the IPv6 default route quietly expires half an hour

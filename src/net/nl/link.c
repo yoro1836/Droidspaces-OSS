@@ -188,43 +188,6 @@ int ds_nl_create_macvlan(ds_nl_ctx_t *ctx, const char *name, int parent_index,
   return ds_nl_talk(ctx, &req.n);
 }
 
-/* The ipvlan counterpart: no address of its own, it sends with the parent's
- * MAC, which is what lets it live on a Wi-Fi interface. */
-int ds_nl_create_ipvlan(ds_nl_ctx_t *ctx, const char *name, int parent_index,
-                        int netns_fd, int l3) {
-  struct {
-    struct nlmsghdr n;
-    struct ifinfomsg i;
-    char buf[512];
-  } req;
-  uint32_t link = (uint32_t)parent_index;
-  uint16_t mode = l3 ? 1 : 0; /* IPVLAN_MODE_L3, IPVLAN_MODE_L2 */
-
-  memset(&req, 0, sizeof(req));
-  req.n.nlmsg_len = NLMSG_LENGTH(sizeof(struct ifinfomsg));
-  req.n.nlmsg_type = RTM_NEWLINK;
-  req.n.nlmsg_flags = NLM_F_REQUEST | NLM_F_CREATE | NLM_F_EXCL | NLM_F_ACK;
-  req.i.ifi_family = AF_UNSPEC;
-
-  nl_addattr(&req.n, (int)sizeof(req), IFLA_IFNAME, name,
-             (int)strlen(name) + 1);
-  nl_addattr(&req.n, (int)sizeof(req), IFLA_LINK, &link, sizeof(link));
-  if (netns_fd >= 0)
-    nl_addattr(&req.n, (int)sizeof(req), IFLA_NET_NS_FD, &netns_fd,
-               (int)sizeof(int));
-
-  struct rtattr *linfo = nl_nest_begin(&req.n, (int)sizeof(req), IFLA_LINKINFO);
-  nl_addattr(&req.n, (int)sizeof(req), IFLA_INFO_KIND, "ipvlan", 7);
-  struct rtattr *ldata =
-      nl_nest_begin(&req.n, (int)sizeof(req), IFLA_INFO_DATA);
-  nl_addattr(&req.n, (int)sizeof(req), 1 /* IFLA_IPVLAN_MODE */, &mode,
-             sizeof(mode));
-  nl_nest_end(&req.n, ldata);
-  nl_nest_end(&req.n, linfo);
-
-  return ds_nl_talk(ctx, &req.n);
-}
-
 /* Attach an interface to a bridge (IFLA_MASTER) */
 
 int ds_nl_set_master(ds_nl_ctx_t *ctx, const char *ifname, const char *master) {
