@@ -151,6 +151,7 @@ fun InstallationSummaryScreen(
                     Option(config.enablePulseaudio, stringResource(R.string.enable_pulseaudio), stringResource(R.string.enabled_legend), Icons.AutoMirrored.Filled.VolumeUp)
                     Option(config.selinuxPermissive, stringResource(R.string.selinux_permissive), stringResource(R.string.enabled_legend), Icons.Default.Security)
                     Option(config.allowSandboxing, stringResource(R.string.allow_userns), stringResource(R.string.enabled_legend), Icons.Default.Groups)
+                    Option(config.unprivileged, stringResource(R.string.unprivileged), stringResource(R.string.enabled_legend), Icons.Default.Shield)
                     Option(config.volatileMode, stringResource(R.string.volatile_mode), stringResource(R.string.enabled_legend), Icons.Default.AutoDelete)
                     Option(config.runAtBoot, stringResource(R.string.run_at_boot), stringResource(R.string.enabled_legend), Icons.Default.PowerSettingsNew)
                     Option(config.forceCgroupv1, stringResource(R.string.force_cgroupv1), stringResource(R.string.enabled_legend), Icons.Default.Layers)

@@ -195,6 +195,7 @@ fun ContainerCard(
                     if (container.enablePulseaudio) add(context.getString(R.string.pulseaudio_option))
                     if (container.selinuxPermissive) add(context.getString(R.string.selinux_permissive_option))
                     if (container.allowSandboxing) add(context.getString(R.string.userns_option))
+                    if (container.unprivileged) add(context.getString(R.string.unprivileged_option))
                     if (container.volatileMode) add(context.getString(R.string.volatile_option))
                     if (container.forceCgroupv1) add(context.getString(R.string.cgroup_v1_option))
                     if (container.privileged.isNotEmpty()) add(context.getString(R.string.privileged_option))

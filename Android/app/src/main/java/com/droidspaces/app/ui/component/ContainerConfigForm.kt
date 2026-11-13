@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.GppMaybe
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material.icons.filled.PowerSettingsNew
@@ -105,12 +106,13 @@ fun ContainerConfigForm(
 
     val isSeccompDisabled = privilegedTags(state.privileged).let { "noseccomp" in it || "full" in it }
     val usernsSupported = ok("user_ns")
+    val unprivilegedSupported = usernsSupported && ok("cgroup2")
 
     // One pass: drop what the kernel cannot do, then the seccomp rule, then a
     // single state write so the Edit screen sees one change, not several.
     // Keyed on gpu too, so turning GPU or Hardware Access off takes Anland
     // down with it instead of leaving it checked behind a greyed switch.
-    LaunchedEffect(caps, isSeccompDisabled, state.netMode, gpu) {
+    LaunchedEffect(caps, isSeccompDisabled, state.netMode, gpu, state.unprivileged) {
         var s = caps?.coerce(state) ?: state
         if (isSeccompDisabled && usernsSupported) s = s.copy(allowSandboxing = true)
         if (s != state) onStateChange(s)
@@ -415,6 +417,16 @@ fun ContainerConfigForm(
             checked = state.allowSandboxing,
             enabled = !isSeccompDisabled && usernsSupported,
             onCheckedChange = { clearFocus(); onStateChange(state.copy(allowSandboxing = it)) }
+        )
+        GroupDivider()
+        SwitchItem(
+            icon = Icons.Default.Shield,
+            title = context.getString(R.string.unprivileged),
+            summary = if (unprivilegedSupported) context.getString(R.string.unprivileged_description)
+                else context.getString(R.string.unprivileged_description_not_supported),
+            checked = state.unprivileged,
+            enabled = unprivilegedSupported,
+            onCheckedChange = { clearFocus(); onStateChange(state.copy(unprivileged = it)) }
         )
         GroupDivider()
         SwitchItem(
