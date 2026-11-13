@@ -399,8 +399,11 @@ int internal_boot(struct ds_config *cfg) {
   }
 
   /* 17b. Apply deferred mount propagation settings.
-   * Switch to MS_SHARED only after relocation is complete. */
-  if (cfg->privileged_mask & DS_PRIV_SHARED) {
+   * Switch to MS_SHARED only after relocation is complete.
+   * Always in an unprivileged container: its root is a private copy with no
+   * peer on the host, so sharing it reaches nobody outside, and rootless
+   * podman and docker inside expect it. */
+  if ((cfg->privileged_mask & DS_PRIV_SHARED) || cfg->unprivileged) {
     if (mount(NULL, "/", NULL, MS_REC | MS_SHARED, NULL) < 0) {
       ds_warn("[SEC] Failed to apply MS_SHARED propagation: %s",
               strerror(errno));
