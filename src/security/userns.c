@@ -11,6 +11,7 @@
 #include <sys/prctl.h>
 #include <sys/socket.h>
 #include <sys/syscall.h>
+#include <sys/xattr.h>
 
 /* Unprivileged containers: root inside is a plain uid outside.
  *
@@ -30,6 +31,16 @@
 #endif
 #ifndef __NR_mount_setattr
 #define __NR_mount_setattr 442
+#endif
+#ifndef __NR_fsopen
+#define __NR_fsopen 430
+#define __NR_fsconfig 431
+#define __NR_fsmount 432
+#endif
+#ifndef FSOPEN_CLOEXEC
+#define FSOPEN_CLOEXEC 1
+#define FSCONFIG_CMD_CREATE 6
+#define FSMOUNT_CLOEXEC 1
 #endif
 #ifndef OPEN_TREE_CLONE
 #define OPEN_TREE_CLONE 1
@@ -119,9 +130,27 @@ static int shift_one(const char *path, const struct stat *st, int type,
   if (uid == st->st_uid && gid == st->st_gid)
     return 0;
 
+  /* chown also drops file capabilities, which is what newuidmap and ping
+   * run on. Put them back afterwards, and name the container's root as their
+   * owner (revision 3) on the way up: the kernel ignores capabilities that
+   * belong to a root other than the caller's. Layout per
+   * linux/capability.h: a little-endian magic word with the revision in its
+   * top byte, 16 bytes of sets, then the owner in revision 3 only. */
+  unsigned char cap[24];
+  ssize_t cap_len = S_ISREG(st->st_mode)
+                        ? lgetxattr(path, "security.capability", cap, 24)
+                        : -1;
+
   if (lchown(path, uid, gid) < 0) {
     ds_warn("[USERNS] chown %s: %s", path, strerror(errno));
     return 0;
+  }
+  if (cap_len >= 20 && (cap[3] == 2 || cap[3] == 3)) {
+    uint32_t owner = htole32(DS_USERNS_BASE);
+    cap[3] = shift_up ? 3 : 2;
+    memcpy(cap + 20, &owner, 4);
+    if (lsetxattr(path, "security.capability", cap, shift_up ? 24 : 20, 0) < 0)
+      ds_warn("[USERNS] capabilities of %s: %s", path, strerror(errno));
   }
   /* chown drops the setuid and setgid bits of a regular file. */
   if (S_ISREG(st->st_mode) && (st->st_mode & (S_ISUID | S_ISGID)))
@@ -218,6 +247,63 @@ static int prepare_rootfs(const char *rootfs, pid_t owner) {
   return rootfs_copy(rootfs, owner, 0);
 }
 
+/* Set by ds_userns_unshare(), used up by ds_userns_bind_nodes(). */
+static int g_nodes_fd = -1;
+
+/* A detached tmpfs holding the two nodes the container cannot borrow from
+ * the host: Android keeps /dev/fuse to root and has its tun node at /dev/tun.
+ * Root in the user namespace cannot mknod, the helper still can. -1 on a
+ * kernel before 5.2, and the container goes without. */
+static int make_nodes(void) {
+  static const struct {
+    const char *name;
+    dev_t dev;
+  } nodes[] = {{"fuse", makedev(10, 229)}, {"tun", makedev(10, 200)}};
+
+  int fs = (int)syscall(__NR_fsopen, "tmpfs", FSOPEN_CLOEXEC);
+  if (fs < 0)
+    return -1;
+  int mnt = -1;
+  if (syscall(__NR_fsconfig, fs, FSCONFIG_CMD_CREATE, NULL, NULL, 0) == 0)
+    mnt = (int)syscall(__NR_fsmount, fs, FSMOUNT_CLOEXEC, 0);
+  close(fs);
+  if (mnt < 0)
+    return -1;
+
+  for (size_t i = 0; i < sizeof(nodes) / sizeof(nodes[0]); i++)
+    if (mknodat(mnt, nodes[i].name, S_IFCHR | 0666, nodes[i].dev) < 0 ||
+        fchmodat(mnt, nodes[i].name, 0666, 0) < 0) {
+      close(mnt);
+      return -1;
+    }
+  return mnt;
+}
+
+void ds_userns_bind_nodes(const char *dev_dir) {
+  if (g_nodes_fd < 0)
+    return;
+
+  char stash[PATH_MAX], src[PATH_MAX + 8], dst[PATH_MAX + 8];
+  snprintf(stash, sizeof(stash), "%s/.ds-nodes", dev_dir);
+  mkdir(stash, 0700);
+  if (syscall(__NR_move_mount, g_nodes_fd, "", AT_FDCWD, stash,
+              MOVE_MOUNT_F_EMPTY_PATH) == 0) {
+    const char *names[][2] = {{"fuse", "fuse"}, {"tun", "net/tun"}};
+    for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); i++) {
+      snprintf(src, sizeof(src), "%s/%s", stash, names[i][0]);
+      snprintf(dst, sizeof(dst), "%s/%s", dev_dir, names[i][1]);
+      if (bind_mount(src, dst) < 0)
+        ds_warn("[USERNS] /dev/%s is not available: %s", names[i][1],
+                strerror(errno));
+    }
+    /* The binds keep the nodes alive, the stash itself can go. */
+    umount2(stash, MNT_DETACH);
+  }
+  rmdir(stash);
+  close(g_nodes_fd);
+  g_nodes_fd = -1;
+}
+
 /* What the helper reports back. step names the call that failed. */
 struct userns_reply {
   int err;
@@ -226,7 +312,7 @@ struct userns_reply {
 
 static void helper_main(struct ds_config *cfg, pid_t owner, int sock) {
   struct userns_reply reply = {0};
-  int fds[2] = {-1, -1};
+  int fds[3] = {-1, -1, -1};
   char go;
 
   /* The parent says when its user namespace exists. End of file means it
@@ -250,7 +336,11 @@ static void helper_main(struct ds_config *cfg, pid_t owner, int sock) {
     safe_strncpy(reply.step, "open rootfs", sizeof(reply.step));
   }
 
-  if (reply.err || ds_send_fds(sock, &reply, sizeof(reply), fds, 2) < 0) {
+  if (!reply.err)
+    fds[2] = make_nodes();
+
+  if (reply.err ||
+      ds_send_fds(sock, &reply, sizeof(reply), fds, fds[2] < 0 ? 2 : 3) < 0) {
     if (!reply.err)
       reply.err = EIO;
     if (write(sock, &reply, sizeof(reply)) < 0) {
@@ -296,15 +386,15 @@ int ds_userns_unshare(struct ds_config *cfg, int ns_flags) {
   }
 
   struct userns_reply reply = {.err = EIO};
-  int fds[2] = {-1, -1}, count = 0;
+  int fds[3] = {-1, -1, -1}, count = 0;
   int ok = write(sv[0], "1", 1) == 1 &&
-           ds_recv_fds(sv[0], &reply, sizeof(reply), fds, 2, &count) ==
+           ds_recv_fds(sv[0], &reply, sizeof(reply), fds, 3, &count) ==
                (ssize_t)sizeof(reply);
   close(sv[0]);
   while (waitpid(helper, NULL, 0) < 0 && errno == EINTR)
     ;
 
-  if (!ok || reply.err || count != 2) {
+  if (!ok || reply.err || count < 2) {
     reply.step[sizeof(reply.step) - 1] = '\0';
     ds_error("[USERNS] %s failed: %s", reply.step[0] ? reply.step : "helper",
              strerror(reply.err));
@@ -318,8 +408,8 @@ int ds_userns_unshare(struct ds_config *cfg, int ns_flags) {
       setresuid(0, 0, 0) < 0) {
     ds_error("[USERNS] Failed to become root in the new namespace: %s",
              strerror(errno));
-    close(fds[0]);
-    close(fds[1]);
+    for (int i = 0; i < count; i++)
+      close(fds[i]);
     return -1;
   }
 
@@ -330,6 +420,7 @@ int ds_userns_unshare(struct ds_config *cfg, int ns_flags) {
 
   cfg->userns_rootfs_fd = fds[0];
   cfg->userns_rootfs_dir_fd = fds[1];
+  g_nodes_fd = fds[2];
   return 0;
 }
 

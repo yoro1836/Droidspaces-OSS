@@ -74,6 +74,7 @@ int ds_userns_unshare(struct ds_config *cfg, int ns_flags);
 int ds_userns_stand_on_rootfs(struct ds_config *cfg);
 int ds_userns_attach_rootfs(struct ds_config *cfg);
 /* Give the container's cgroup2 directory to its root. */
+void ds_userns_bind_nodes(const char *dev_dir);
 void ds_userns_delegate_cgroup(const char *container_name);
 /* 1 when pid lives in another user namespace than the caller. */
 int ds_userns_differs(pid_t pid);

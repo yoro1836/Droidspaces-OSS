@@ -204,6 +204,9 @@ int create_devices(const char *rootfs, const char *staging) {
     }
   }
 
+  if (!staging)
+    ds_userns_bind_nodes(dev_dir);
+
   /* Private tmpfs only: tty1..N as their own 1:3 (null) nodes so non-systemd
    * inits (openrc, busybox) stop logging "can't open /dev/ttyN" and their
    * getty has a tty to own. Never symlinks to /dev/null: getty fchmods its
