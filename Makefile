@@ -47,6 +47,7 @@ SRCS = $(SRC_DIR)/main.c \
        $(SRC_DIR)/config/save.c \
        $(SRC_DIR)/security/jail.c \
        $(SRC_DIR)/security/caps.c \
+       $(SRC_DIR)/security/userns.c \
        $(SRC_DIR)/security/seccomp.c \
        $(SRC_DIR)/security/seccomp_shims.c \
        $(SRC_DIR)/rootfs/mount.c \

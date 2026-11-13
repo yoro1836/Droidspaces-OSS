@@ -105,7 +105,8 @@ struct ds_config {
   int android_storage;     /* --enable-android-storage */
   int selinux_permissive;  /* --selinux-permissive */
   int sandboxing_allowed;  /* --allow-sandboxing */
-  int allow_vts;           /* --allow-vts: leave host VTs unmasked in hw mode */
+  int unprivileged;  /* --unprivileged: run in a user namespace, see userns.c */
+  int allow_vts;     /* --allow-vts: leave host VTs unmasked in hw mode */
   int allow_swap;    /* --allow-swap: a memory-limited container may use swap */
   int swap_uncapped; /* runtime, never saved: no swap cap is in force */
   int net_bridgeless;  /* Probe result: no CONFIG_BRIDGE, use PTP NAT */
@@ -127,6 +128,10 @@ struct ds_config {
   pid_t anland_pid;            /* PID of the anland display daemon process */
   char anland_sock[108]; /* host socket of the anland daemon, sun_path size */
   int is_img_mount;      /* 1 if rootfs was loop-mounted from .img */
+  /* Unprivileged boot: the idmapped rootfs and the directory it goes over,
+   * handed from the intermediate to init. -1 outside that window. */
+  int userns_rootfs_fd;
+  int userns_rootfs_dir_fd;
   char img_mount_point[PATH_MAX]; /* where the .img was mounted */
   ds_init_type_t init_type;       /* detected container PID 1 init family */
   char custom_init[PATH_MAX]; /* --init=PATH override (default: /sbin/init) */

@@ -164,6 +164,8 @@ reboot_loop:;
    * holds now. Done here and not once up front so that a restart, an
    * internal reboot and a start after a crash all get the same clean slate. */
   ds_cgroup_setup(cfg);
+  if (cfg->unprivileged)
+    ds_userns_delegate_cgroup(cfg->container_name);
 
   pid_t mid_pid = fork();
   if (mid_pid < 0)
@@ -185,7 +187,12 @@ reboot_loop:;
     if (access("/proc/self/ns/cgroup", F_OK) == 0)
       clone_flags |= CLONE_NEWCGROUP;
 
-    if (unshare(clone_flags) < 0) {
+    if (cfg->unprivileged) {
+      /* UTS and IPC again: the monitor's belong to the host's user
+       * namespace, and root in the container's has no say over those. */
+      if (ds_userns_unshare(cfg, clone_flags | CLONE_NEWUTS | CLONE_NEWIPC) < 0)
+        _exit(EXIT_FAILURE);
+    } else if (unshare(clone_flags) < 0) {
       ds_error("unshare(PID|NET|CGROUP) failed: %s", strerror(errno));
       _exit(EXIT_FAILURE);
     }

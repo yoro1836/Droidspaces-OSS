@@ -134,6 +134,7 @@ const struct option long_options[] = {
     {"allow-sandboxing", no_argument, 0, 279},
     {"allow-userns", no_argument, 0, 279}, /* old name, kept for scripts */
     {"allow-vts", no_argument, 0, 278},
+    {"unprivileged", no_argument, 0, 285},
     {"allow-swap", no_argument, 0, 284},
     {"volatile", no_argument, 0, 'V'},
     {"bind-mount", required_argument, 0, 'B'},
@@ -317,6 +318,9 @@ int ds_apply_cli_overrides(int argc, char **argv, struct ds_config *cfg,
       break;
     case 279:
       cfg->sandboxing_allowed = 1;
+      break;
+    case 285:
+      cfg->unprivileged = 1;
       break;
     case 278:
       cfg->allow_vts = 1;

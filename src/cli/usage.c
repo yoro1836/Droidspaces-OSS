@@ -111,7 +111,9 @@ void print_usage(void) {
       "      --allow-sandboxing    Allow user namespaces for unprivileged "
       "Docker, Podman, bwrap\n"
       "      --allow-vts           Leave host VTs (tty1-6) visible with "
-      "--hw-access\n\n");
+      "--hw-access\n"
+      "      --unprivileged        Run in a user namespace: root inside is "
+      "an ordinary uid outside\n\n");
 
   printf(
       C_BOLD

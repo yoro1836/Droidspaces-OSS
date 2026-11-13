@@ -181,6 +181,7 @@ int show_info(struct ds_config *cfg, int trust_cfg_pid) {
     ds_json_int("swap_allowed", swap_allowed, &first);
     ds_json_int("sandboxing_allowed", cfg->sandboxing_allowed, &first);
     ds_json_int("vts_allowed", cfg->allow_vts, &first);
+    ds_json_int("unprivileged", cfg->unprivileged, &first);
     ds_json_int("foreground_mode", cfg->foreground, &first);
     ds_json_str("dns_servers", cfg->dns_servers, &first);
 
@@ -371,6 +372,12 @@ int show_info(struct ds_config *cfg, int trust_cfg_pid) {
     /* 14. Sandboxing (user namespaces) */
     if (cfg->sandboxing_allowed) {
       printf("  " C_RED "Sandboxing:" C_RESET " enabled\n");
+      feat_count++;
+    }
+
+    if (cfg->unprivileged) {
+      printf("  " C_GREEN "Unprivileged:" C_RESET " root maps to uid %u\n",
+             DS_USERNS_BASE);
       feat_count++;
     }
 

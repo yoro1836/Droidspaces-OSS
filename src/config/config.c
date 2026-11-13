@@ -23,6 +23,7 @@ void ds_config_init(struct ds_config *cfg) {
   memset(cfg, 0, sizeof(*cfg));
   cfg->net_ready_pipe[0] = cfg->net_ready_pipe[1] = -1;
   cfg->net_done_pipe[0] = cfg->net_done_pipe[1] = -1;
+  cfg->userns_rootfs_fd = cfg->userns_rootfs_dir_fd = -1;
 }
 
 /* Wipe cfg back to defaults while preserving container identity. Shared by

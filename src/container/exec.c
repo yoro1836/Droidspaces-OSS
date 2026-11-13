@@ -51,6 +51,25 @@ int enter_namespace(pid_t pid, struct ds_config *cfg) {
     }
   }
 
+  /* An unprivileged container: its user namespace first, which is what gives
+   * us the right to join the others, then its root's ids once we are in. */
+  int userns_fd = -1;
+  if (ds_userns_differs(pid)) {
+    snprintf(path, sizeof(path), "/proc/%d/ns/user", pid);
+    userns_fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (userns_fd < 0 || setns(userns_fd, CLONE_NEWUSER) < 0) {
+      ds_error("Failed to join the container's user namespace: %s",
+               strerror(errno));
+      if (userns_fd >= 0)
+        close(userns_fd);
+      for (int j = 0; j < 6; j++)
+        if (ns_fds[j] >= 0)
+          close(ns_fds[j]);
+      return -1;
+    }
+    close(userns_fd);
+  }
+
   /* 2. Enter namespaces */
   for (int i = 0; i < 6; i++) {
     if (ns_fds[i] < 0)
@@ -76,6 +95,12 @@ int enter_namespace(pid_t pid, struct ds_config *cfg) {
       }
     }
     close(ns_fds[i]);
+  }
+
+  if (userns_fd >= 0 && (setgroups(0, NULL) < 0 || setresgid(0, 0, 0) < 0 ||
+                         setresuid(0, 0, 0) < 0)) {
+    ds_error("Failed to become the container's root: %s", strerror(errno));
+    return -1;
   }
 
   return 0;

@@ -56,6 +56,9 @@ int start_rootfs_locked(struct ds_config *cfg, int *lock_fd, int reuse_mount) {
   if (cfg->net_mode == DS_NET_MACVLAN && ds_net_macvlan_check(cfg) < 0)
     return -1;
 
+  if (ds_userns_check_config(cfg) < 0)
+    return -1;
+
   /* 0. Restart: pick the preserved mount back up. If it is gone after all,
    *    this is an ordinary start that mounts the image again. */
   if (reuse_mount) {
@@ -168,6 +171,8 @@ int start_rootfs_locked(struct ds_config *cfg, int *lock_fd, int reuse_mount) {
     safe_strncpy(cfg->img_mount_point, cfg->rootfs_path,
                  sizeof(cfg->img_mount_point));
   }
+
+  ds_userns_restore_ownership(cfg);
 
   /* 2a. Verify init binary exists before any side effects (NAT, config save).
    * For rootfs.img mode the image is now mounted; for directory mode the

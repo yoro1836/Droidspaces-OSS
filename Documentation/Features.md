@@ -119,6 +119,14 @@ One gap: a program that asks the kernel directly through `sysinfo()` rather than
 
 The cost is that root in the container can reach the host's live sysctl tree through that pristine `/proc`, so this is a statement of trust in the container's root user. Needs `CONFIG_USER_NS`, reported by `droidspaces check` as user namespace support. For Docker inside the container, put `{"userns-remap": "default"}` in `/etc/docker/daemon.json` and restart it.
 
+### Unprivileged
+
+`--unprivileged`, key `unprivileged`. Off by default. The container gets its own user namespace: uid 0 inside is uid 1000000000 on the host, and its capabilities reach only the namespaces the container owns. A process that breaks out of the container is an ordinary user on the host, where a regular container's root is the host's root.
+
+The rootfs is not rewritten where the kernel has idmapped mounts (Linux 5.12, with real `CONFIG_USER_NS`). Elsewhere, which includes Android kernels that get user namespaces from a module, the first start moves every file owner in the rootfs into the mapped range, and the next start without the option moves them back. That takes a while on a large rootfs and drops file capabilities.
+
+It cannot be combined with Hardware Access, GPU mode, Android storage, Volatile Mode or `--force-cgroupv1`, and needs cgroup v2 on the host. With `--net=host` the container sees the host's `/sys`, read-only, since a user namespace may only mount sysfs for a network namespace of its own. SELinux still treats the container's processes as the runtime's domain, so the separation is by uid, not by policy.
+
 ### Volatile Mode
 
 `--volatile`, key `volatile_mode`. Every write goes to RAM and is thrown away when the container stops; the rootfs is never changed. Good for trying a package, for a clean environment on every boot, or for breaking things on purpose. Needs OverlayFS in the kernel. On Android it needs a sparse image rootfs, because OverlayFS on most Android kernels refuses an f2fs directory as its base.

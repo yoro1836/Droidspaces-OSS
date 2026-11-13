@@ -184,7 +184,15 @@ int create_devices(const char *rootfs, const char *staging) {
      * that break non-root users in the container. */
     force_unlink(path);
     if (mknod(path, devices[i].mode, devices[i].dev) < 0) {
-      /* Fallback for environments where mknod is restricted */
+      /* Fallback for environments where mknod is restricted, a user
+       * namespace being one: borrow the host's node. Not for ptmx and
+       * console, which get the container's own pty bound over them later
+       * and only need something to bind onto. */
+      if (strcmp(devices[i].name, "ptmx") == 0 ||
+          strcmp(devices[i].name, "console") == 0) {
+        write_file(path, "");
+        continue;
+      }
       char host_path[PATH_MAX];
       snprintf(host_path, sizeof(host_path), "/dev/%s", devices[i].name);
       bind_mount(host_path, path);

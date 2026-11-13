@@ -54,4 +54,27 @@ int ds_get_selinux_status(void);
 int get_selinux_context(const char *path, char *buf, size_t size);
 void ds_selinux_enter_domain(void);
 
+/* userns.c */
+/* Host ids the container's 0..DS_USERNS_RANGE-1 map to. Above every id
+ * Android hands out (user * 100000 + app id), and below 2^31. */
+#define DS_USERNS_BASE 1000000000u
+#define DS_USERNS_RANGE 65536u
+
+struct ds_config;
+/* A privileged start of a rootfs that an unprivileged one shifted on disk:
+ * move the owners back first. */
+void ds_userns_restore_ownership(struct ds_config *cfg);
+/* Fails when --unprivileged meets an option it cannot honour. */
+int ds_userns_check_config(struct ds_config *cfg);
+/* In the per-boot intermediate: unshare a user namespace plus ns_flags, map
+ * the ids, become root inside. Leaves the idmapped rootfs in cfg. */
+int ds_userns_unshare(struct ds_config *cfg, int ns_flags);
+/* In init, before and after it unshares its mount namespace. */
+int ds_userns_stand_on_rootfs(struct ds_config *cfg);
+int ds_userns_attach_rootfs(struct ds_config *cfg);
+/* Give the container's cgroup2 directory to its root. */
+void ds_userns_delegate_cgroup(const char *container_name);
+/* 1 when pid lives in another user namespace than the caller. */
+int ds_userns_differs(pid_t pid);
+
 #endif /* DS_SECURITY_SECURITY_H */

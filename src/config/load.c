@@ -157,6 +157,8 @@ int ds_config_load_file(FILE *f, struct ds_config *cfg) {
     } else if (strcmp(key, "allow_sandboxing") == 0 ||
                strcmp(key, "allow_userns") == 0) { /* old key */
       cfg->sandboxing_allowed = parse_bool(val);
+    } else if (strcmp(key, "unprivileged") == 0) {
+      cfg->unprivileged = parse_bool(val);
     } else if (strcmp(key, "allow_vts") == 0) {
       cfg->allow_vts = parse_bool(val);
     } else if (strcmp(key, "allow_swap") == 0) {

@@ -40,6 +40,7 @@ static void ds_config_serialize_known(FILE *f, struct ds_config *cfg) {
   fprintf(f, "enable_gpu_mode=%d\n", cfg->gpu_mode);
   fprintf(f, "selinux_permissive=%d\n", cfg->selinux_permissive);
   fprintf(f, "allow_sandboxing=%d\n", cfg->sandboxing_allowed);
+  fprintf(f, "unprivileged=%d\n", cfg->unprivileged);
   fprintf(f, "allow_vts=%d\n", cfg->allow_vts);
   fprintf(f, "allow_swap=%d\n", cfg->allow_swap);
   fprintf(f, "volatile_mode=%d\n", cfg->volatile_mode);

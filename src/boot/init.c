@@ -127,6 +127,11 @@ int internal_boot(struct ds_config *cfg) {
     goto boot_fail;
   }
 
+  /* Unprivileged: the new namespace carries our working directory over, and
+   * that is the only way we can name the rootfs directory in it. */
+  if (cfg->unprivileged && ds_userns_stand_on_rootfs(cfg) < 0)
+    goto boot_fail;
+
   /* 1. Isolated mount namespace */
   if (unshare(CLONE_NEWNS) < 0) {
     ds_error("Failed to unshare mount namespace: %s", strerror(errno));
@@ -156,9 +161,13 @@ int internal_boot(struct ds_config *cfg) {
     }
   }
 
-  /* 4. Bind mount rootfs to itself (required for pivot_root) */
-  if (mount(cfg->rootfs_path, cfg->rootfs_path, NULL, MS_BIND | MS_REC, NULL) <
-      0) {
+  /* 4. Bind mount rootfs to itself (required for pivot_root). Unprivileged,
+   * the idmapped copy goes over it instead and we are left standing in it. */
+  if (cfg->unprivileged) {
+    if (ds_userns_attach_rootfs(cfg) < 0)
+      goto boot_fail;
+  } else if (mount(cfg->rootfs_path, cfg->rootfs_path, NULL, MS_BIND | MS_REC,
+                   NULL) < 0) {
     ds_error("Failed to bind mount rootfs: %s", strerror(errno));
     goto boot_fail;
   }
@@ -176,7 +185,7 @@ int internal_boot(struct ds_config *cfg) {
    * host backing fs already writable) and volatile mode (pivot_root targets the
    * read-write overlay, not the read-only lower image).  Safe: the guest synced
    * the fs before flipping it read-only.  A no-op when already read-write. */
-  if (cfg->is_img_mount && !cfg->volatile_mode) {
+  if (cfg->is_img_mount && !cfg->volatile_mode && !cfg->unprivileged) {
     if (mount(NULL, cfg->rootfs_path, NULL,
               MS_REMOUNT | MS_NOATIME | MS_NODIRATIME, NULL) < 0)
       ds_warn("Failed to remount rootfs %s read-write: %s", cfg->rootfs_path,
@@ -184,7 +193,7 @@ int internal_boot(struct ds_config *cfg) {
   }
 
   /* 5. Set working directory to rootfs (required before pivot_root) */
-  if (chdir(cfg->rootfs_path) < 0) {
+  if (!cfg->unprivileged && chdir(cfg->rootfs_path) < 0) {
     ds_error("Failed to chdir to '%s': %s", cfg->rootfs_path, strerror(errno));
     goto boot_fail;
   }
@@ -227,9 +236,23 @@ int internal_boot(struct ds_config *cfg) {
     goto boot_fail;
   }
 
-  /* Mount /sys */
-  if (domount("sysfs", "sys", "sysfs", MS_NOSUID | MS_NODEV | MS_NOEXEC, NULL) <
-      0) {
+  /* Mount /sys. A user namespace may mount sysfs only for a network
+   * namespace it owns, so an unprivileged container on the host's network
+   * takes the host's /sys as it is. The flags are locked on such a copy and
+   * every remount has to repeat them. */
+  unsigned long sys_flags = 0;
+  int fresh_sysfs = !(cfg->unprivileged && cfg->net_mode == DS_NET_HOST) &&
+                    domount("sysfs", "sys", "sysfs",
+                            MS_NOSUID | MS_NODEV | MS_NOEXEC, NULL) == 0;
+  if (!fresh_sysfs && cfg->unprivileged) {
+    /* Also where a kernel refuses the fresh mount to a user namespace that
+     * does own its network namespace. */
+    sys_flags = MS_NOSUID | MS_NODEV | MS_NOEXEC;
+    if (mount("/sys", "sys", NULL, MS_BIND | MS_REC, NULL) < 0) {
+      ds_error("Failed to bind the host's sysfs: %s", strerror(errno));
+      goto boot_fail;
+    }
+  } else if (!fresh_sysfs) {
     ds_error("Failed to mount sysfs: %s", strerror(errno));
     goto boot_fail;
   }
@@ -312,7 +335,8 @@ int internal_boot(struct ds_config *cfg) {
    * hw_access is disabled entirely. In background mode or non-systemd
    * hw_access mode, we leave /sys RW. */
   if (!cfg->hw_access || (cfg->foreground && is_systemd)) {
-    if (mount(NULL, "sys", NULL, MS_REMOUNT | MS_BIND | MS_RDONLY, NULL) < 0) {
+    if (mount(NULL, "sys", NULL, MS_REMOUNT | MS_BIND | MS_RDONLY | sys_flags,
+              NULL) < 0) {
       ds_warn("Failed to remount /sys as read-only: %s", strerror(errno));
     }
   }
