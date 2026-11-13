@@ -172,6 +172,17 @@ if [ "$MODE" = "sparse" ]; then
 
     sleep 1
 
+    if [ -e "${ROOTFS_IMG}.layers/1.img" ]; then
+    # A container with snapshots keeps what was written after the first one in
+    # layer images. Only the runtime knows how to stack them, so it mounts.
+    log "Mounting sparse image with its snapshot layers..."
+    TEMP_MOUNT=$("${DS_PATH}/bin/droidspaces" --config="$CONFIG_FILE" image-mount | "$BUSYBOX" tail -n 1)
+    if [ -z "$TEMP_MOUNT" ] || ! "$BUSYBOX" mountpoint -q "$TEMP_MOUNT"; then
+        TEMP_MOUNT=""
+        error "Failed to mount the image and its snapshot layers"
+        exit 1
+    fi
+    else
     # Create temp mount point
     TEMP_MOUNT="${CONTAINER_DIR}/_export_mnt_$$"
     mkdir -p "$TEMP_MOUNT" || { error "Failed to create temporary mount point."; exit 1; }
@@ -186,6 +197,7 @@ if [ "$MODE" = "sparse" ]; then
        && ! mount -t ext4 -o loop,ro "$ROOTFS_IMG" "$TEMP_MOUNT" 2>/dev/null; then
         error "Failed to mount sparse image at $TEMP_MOUNT"
         exit 1
+    fi
     fi
     log "Sparse image mounted at $TEMP_MOUNT"
 
@@ -211,12 +223,20 @@ for member in $HEADER_MEMBERS; do
     size=$("$BUSYBOX" stat -c %s "$TEMP_CONFIG_DIR/$member")
     HEADER_BLOCKS=$((HEADER_BLOCKS + 1 + (size + 511) / 512))
 done
+# Level 1 packs about four times quicker than BusyBox's default for an archive
+# a few percent larger, and the wait is what people notice. Android's own gzip
+# is zlib and quicker still, so it goes first. Word-split on purpose.
+if echo | gzip -1 >/dev/null 2>&1; then
+    GZIP_CMD="gzip -1"
+else
+    GZIP_CMD="$BUSYBOX gzip -1"
+fi
 if ! (
     set -o pipefail
     {
         "$BUSYBOX" dd if="$TEMP_CONFIG_DIR/header.tar" bs=512 count="$HEADER_BLOCKS" 2>/dev/null &&
         "$BUSYBOX" tar -cf - --exclude='./container.config' --exclude='./container.env' -C "$TAR_ROOT" .
-    } | "$BUSYBOX" gzip > "$OUTPUT_PATH"
+    } | $GZIP_CMD > "$OUTPUT_PATH"
 ); then
     error "tar failed. Removing incomplete archive."
     rm -f "$OUTPUT_PATH" 2>/dev/null || true
