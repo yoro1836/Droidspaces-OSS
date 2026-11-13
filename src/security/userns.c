@@ -153,9 +153,13 @@ static int rootfs_copy(const char *rootfs, pid_t owner, int idmap) {
   /* Android mounts /data nosuid, and the copy would inherit that: sudo and su
    * in a directory rootfs need the bit gone. Setuid in here only ever reaches
    * the container's own root. */
+  /* Private as well: a copy of a shared mount is its peer, and Android's
+   * mounts are shared. pivot_root refuses a shared new root, and what the
+   * container mounts under its root would show up on the host. */
   struct ds_mount_attr attr = {.attr_set = idmap ? MOUNT_ATTR_IDMAP : 0,
                                .attr_clr = MOUNT_ATTR_NOSUID,
-                               .userns_fd = (uint64_t)userns_fd};
+                               .propagation = MS_PRIVATE,
+                               .userns_fd = idmap ? (uint64_t)userns_fd : 0};
   if (syscall(__NR_mount_setattr, tree, "", AT_EMPTY_PATH, &attr,
               sizeof(attr)) < 0 &&
       idmap) {
@@ -329,6 +333,11 @@ int ds_userns_attach_rootfs(struct ds_config *cfg) {
   close(cfg->userns_rootfs_fd);
   close(cfg->userns_rootfs_dir_fd);
   cfg->userns_rootfs_fd = cfg->userns_rootfs_dir_fd = -1;
+
+  /* Again from in here, for a kernel whose mount_setattr() did not take the
+   * propagation change in the helper. */
+  if (mount(NULL, ".", NULL, MS_REC | MS_PRIVATE, NULL) < 0)
+    ds_warn("[USERNS] Failed to make the rootfs private: %s", strerror(errno));
   return 0;
 }
 
