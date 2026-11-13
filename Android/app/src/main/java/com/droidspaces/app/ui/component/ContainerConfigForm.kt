@@ -193,7 +193,7 @@ fun ContainerConfigForm(
             summary = if (ok("devtmpfs")) context.getString(R.string.hardware_access_description)
                 else context.getString(R.string.hardware_access_not_supported),
             checked = state.enableHwAccess,
-            enabled = ok("devtmpfs"),
+            enabled = ok("devtmpfs") && !state.unprivileged,
             onCheckedChange = { on ->
                 clearFocus()
                 if (on) showHwAccessDialog = true else onStateChange(state.copy(enableHwAccess = false))
@@ -435,7 +435,7 @@ fun ContainerConfigForm(
             summary = if (ok("overlayfs")) context.getString(R.string.volatile_mode_description)
                 else context.getString(R.string.volatile_mode_not_supported),
             checked = state.volatileMode,
-            enabled = ok("overlayfs"),
+            enabled = ok("overlayfs") && !state.unprivileged,
             onCheckedChange = { clearFocus(); onStateChange(state.copy(volatileMode = it)) }
         )
         GroupDivider()
@@ -445,7 +445,7 @@ fun ContainerConfigForm(
             summary = if (ok("cgroup2")) context.getString(R.string.force_cgroupv1_description)
                 else context.getString(R.string.force_cgroupv1_not_supported),
             checked = state.forceCgroupv1,
-            enabled = ok("cgroup2"),
+            enabled = ok("cgroup2") && !state.unprivileged,
             onCheckedChange = { clearFocus(); onStateChange(state.copy(forceCgroupv1 = it)) }
         )
         GroupDivider()
