@@ -359,6 +359,15 @@ cmd_resize() {
         exit 1
     fi
 
+    # A container with snapshots writes to its newest layer image, and that one's
+    # size is the space it sees. The frozen images below it stay as they are.
+    local layer=1
+    while [ -f "${RESIZE_IMG}.layers/$((layer + 1)).img" ]; do layer=$((layer + 1)); done
+    if [ -f "${RESIZE_IMG}.layers/${layer}.img" ]; then
+        RESIZE_IMG="${RESIZE_IMG}.layers/${layer}.img"
+        log "Container has snapshots, resizing its current layer"
+    fi
+
     check_resize_requirements
 
     # Check if the image is currently loop-mounted

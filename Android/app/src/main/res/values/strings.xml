@@ -789,4 +789,8 @@
     <string name="snapshot_supporting">%1$s · %2$s MB changed after</string>
     <string name="snapshot_restore_body">The container goes back to this snapshot. Everything written after it is lost, later snapshots included.</string>
     <string name="snapshot_delete_body">Only the snapshot is removed. The container stays as it is now. This can take a while if much changed after it.</string>
+    <string name="clone_action">Clone container</string>
+    <string name="clone_title">Clone %1$s</string>
+    <string name="clone_body">The clone starts out as this container is now. The two share what exists so far and only store what each changes afterwards.</string>
+    <string name="clone_name">Name of the clone</string>
 </resources>

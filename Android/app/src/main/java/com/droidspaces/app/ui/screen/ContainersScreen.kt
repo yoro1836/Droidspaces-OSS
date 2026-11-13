@@ -378,7 +378,14 @@ fun ContainersScreen(
         }
 
         showSnapshots?.let { container ->
-            SnapshotsDialog(container = container, onDismiss = { showSnapshots = null })
+            SnapshotsDialog(
+                container = container,
+                onDismiss = { showSnapshots = null },
+                onCloned = {
+                    showSnapshots = null
+                    containerViewModel.refresh()
+                }
+            )
         }
 
         askExportEnv?.let { container ->

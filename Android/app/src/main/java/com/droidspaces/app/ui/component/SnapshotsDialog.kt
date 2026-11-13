@@ -25,6 +25,7 @@ import com.droidspaces.app.util.Constants
 import com.droidspaces.app.util.ContainerCommandBuilder
 import com.droidspaces.app.util.ContainerInfo
 import com.droidspaces.app.util.ContainerManager
+import com.droidspaces.app.util.ValidationUtils
 import com.topjohnwu.superuser.Shell
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -36,11 +37,12 @@ private data class Snapshot(val number: Int, val time: String, val sizeMb: Strin
 private enum class SnapshotAction { RESTORE, DELETE }
 
 /**
- * Snapshots of an image container: take one, go back to one, delete one. The backend
+ * Snapshots of an image container: take one, go back to one, delete one, or clone the
+ * container from where it is now. The backend
  * only does these on a stopped container, so a running one gets the list and a hint.
  */
 @Composable
-fun SnapshotsDialog(container: ContainerInfo, onDismiss: () -> Unit) {
+fun SnapshotsDialog(container: ContainerInfo, onDismiss: () -> Unit, onCloned: () -> Unit) {
     val scope = rememberCoroutineScope()
     var snapshots by remember { mutableStateOf<List<Snapshot>>(emptyList()) }
     var running by remember { mutableStateOf(container.isRunning) }
@@ -48,6 +50,8 @@ fun SnapshotsDialog(container: ContainerInfo, onDismiss: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     var label by remember { mutableStateOf("") }
     var pending by remember { mutableStateOf<Pair<SnapshotAction, Snapshot>?>(null) }
+    var askCloneName by remember { mutableStateOf(false) }
+    var cloneName by remember { mutableStateOf("") }
 
     val base = "\"${Constants.DROIDSPACES_BINARY_PATH}\" " +
         "--config=${ContainerCommandBuilder.quote(ContainerCommandBuilder.getConfigPath(container))}"
@@ -63,12 +67,12 @@ fun SnapshotsDialog(container: ContainerInfo, onDismiss: () -> Unit) {
         }
     }
 
-    fun run(args: String) {
+    fun run(args: String, onSuccess: () -> Unit = {}) {
         scope.launch {
             busy = true
             error = null
             val result = withContext(Dispatchers.IO) { Shell.cmd("$base $args 2>&1").exec() }
-            if (!result.isSuccess) error = result.out.lastOrNull { it.isNotBlank() }
+            if (!result.isSuccess) error = result.out.lastOrNull { it.isNotBlank() } else onSuccess()
             reload()
             busy = false
         }
@@ -146,6 +150,48 @@ fun SnapshotsDialog(container: ContainerInfo, onDismiss: () -> Unit) {
                     }
                 }
             }
+        }
+        AddEntryButton(
+            label = stringResource(R.string.clone_action),
+            onClick = { askCloneName = true },
+            enabled = !busy && !running
+        )
+    }
+
+    if (askCloneName) {
+        val name = ValidationUtils.normalizeContainerName(cloneName)
+        DsDialog(
+            onDismiss = { askCloneName = false },
+            footer = {
+                DialogFooterRow(
+                    dismissLabel = stringResource(R.string.cancel),
+                    confirmLabel = stringResource(R.string.clone_action),
+                    onDismiss = { askCloneName = false },
+                    onConfirm = {
+                        askCloneName = false
+                        run("clone ${ContainerCommandBuilder.quote(name)}", onSuccess = onCloned)
+                    },
+                    confirmEnabled = !ValidationUtils.validateContainerName(name).isError
+                )
+            }
+        ) {
+            Text(
+                text = stringResource(R.string.clone_title, container.name),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = stringResource(R.string.clone_body),
+                style = MaterialTheme.typography.bodyMedium
+            )
+            OutlinedTextField(
+                value = cloneName,
+                onValueChange = { cloneName = it },
+                label = { Text(stringResource(R.string.clone_name)) },
+                singleLine = true,
+                colors = DsTextFieldDefaults.colors(),
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 
