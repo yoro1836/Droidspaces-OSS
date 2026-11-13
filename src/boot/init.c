@@ -361,7 +361,7 @@ int internal_boot(struct ds_config *cfg) {
 
   /* 15. Android-specific storage */
   if (cfg->android_storage) {
-    android_setup_storage(".");
+    android_setup_storage(".", cfg->unprivileged);
   }
 
   /* 16. Custom bind mounts */

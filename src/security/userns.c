@@ -56,10 +56,32 @@ struct ds_mount_attr {
   uint64_t userns_fd;
 };
 
-static int write_id_map(pid_t pid, const char *file) {
-  char path[64], map[64];
+/* Android's shared storage is not something a foreign uid can be let into
+ * by permission bits: its top directory belongs to media_rw (1023), and each
+ * file to the app that made it, uid and gid both, mode 0660. So with Android
+ * storage on, those ids are mapped onto themselves. Root in the container
+ * then has its capabilities over such files, which the kernel grants only
+ * for an inode whose uid and gid are both mapped, and still none over
+ * anything owned by the host's root or system. */
+#define DS_AID_MEDIA_RW 1023u
+#define DS_AID_APP_START 10000u
+#define DS_AID_APP_COUNT 10000u
+
+static int write_id_map(pid_t pid, const char *file, int storage) {
+  char path[64], map[256];
   snprintf(path, sizeof(path), "/proc/%d/%s", (int)pid, file);
-  snprintf(map, sizeof(map), "0 %u %u\n", DS_USERNS_BASE, DS_USERNS_RANGE);
+  if (!storage) {
+    snprintf(map, sizeof(map), "0 %u %u\n", DS_USERNS_BASE, DS_USERNS_RANGE);
+  } else {
+    unsigned app_end = DS_AID_APP_START + DS_AID_APP_COUNT;
+    snprintf(map, sizeof(map),
+             "0 %u %u\n%u %u 1\n%u %u %u\n%u %u %u\n%u %u %u\n", DS_USERNS_BASE,
+             DS_AID_MEDIA_RW, DS_AID_MEDIA_RW, DS_AID_MEDIA_RW,
+             DS_AID_MEDIA_RW + 1, DS_USERNS_BASE + DS_AID_MEDIA_RW + 1,
+             DS_AID_APP_START - DS_AID_MEDIA_RW - 1, DS_AID_APP_START,
+             DS_AID_APP_START, DS_AID_APP_COUNT, app_end,
+             DS_USERNS_BASE + app_end, DS_USERNS_RANGE - app_end);
+  }
   int fd = open(path, O_WRONLY | O_CLOEXEC);
   if (fd < 0)
     return -1;
@@ -215,10 +237,11 @@ static void helper_main(struct ds_config *cfg, pid_t owner, int sock) {
   if (read(sock, &go, 1) != 1)
     _exit(1);
 
-  if (write_id_map(owner, "uid_map") < 0) {
+  int storage = cfg->android_storage && is_android();
+  if (write_id_map(owner, "uid_map", storage) < 0) {
     reply.err = errno;
     safe_strncpy(reply.step, "uid_map", sizeof(reply.step));
-  } else if (write_id_map(owner, "gid_map") < 0) {
+  } else if (write_id_map(owner, "gid_map", storage) < 0) {
     reply.err = errno;
     safe_strncpy(reply.step, "gid_map", sizeof(reply.step));
   } else if ((fds[0] = prepare_rootfs(cfg->rootfs_path, owner)) < 0) {
@@ -388,7 +411,6 @@ int ds_userns_check_config(struct ds_config *cfg) {
       {cfg->hw_access, "--hw-access"},
       {cfg->volatile_mode, "--volatile"},
       {cfg->force_cgroupv1, "--force-cgroupv1"},
-      {cfg->android_storage, "--enable-android-storage"},
   };
   int bad = 0;
   for (size_t i = 0; i < sizeof(clash) / sizeof(clash[0]); i++)

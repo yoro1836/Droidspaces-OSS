@@ -68,7 +68,7 @@ void android_remount_data_suid(void) {
 
 /* Storage */
 
-int android_setup_storage(const char *rootfs_path) {
+int android_setup_storage(const char *rootfs_path, int unprivileged) {
   if (!is_android()) {
     return 0;
   }
@@ -78,7 +78,12 @@ int android_setup_storage(const char *rootfs_path) {
     return -1;
   }
 
-  const char *storage_src = "/storage/emulated/0";
+  /* /storage/emulated is MediaProvider's FUSE view, which decides by the
+   * caller's uid and knows root but not a container's mapped one. An
+   * unprivileged container takes the files underneath, see the id map in
+   * security/userns.c for what lets it in. */
+  const char *storage_src =
+      unprivileged ? "/data/media/0" : "/storage/emulated/0";
   struct stat st;
 
   if (stat(storage_src, &st) < 0 || !S_ISDIR(st.st_mode) ||

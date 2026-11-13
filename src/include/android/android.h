@@ -44,7 +44,7 @@
 /* android.c */
 void android_optimizations(int enable);
 void android_remount_data_suid(void);
-int android_setup_storage(const char *rootfs_path);
+int android_setup_storage(const char *rootfs_path, int unprivileged);
 
 /* anland/anland.c */
 int ds_anland_daemon_start(struct ds_config *cfg);

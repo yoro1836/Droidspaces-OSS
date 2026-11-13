@@ -59,7 +59,6 @@ data class HostCapabilities(
             volatileMode = s.volatileMode && has("overlayfs") && !unprivileged,
             allowSandboxing = s.allowSandboxing && has("user_ns"),
             unprivileged = unprivileged,
-            enableAndroidStorage = s.enableAndroidStorage && !unprivileged,
             forceCgroupv1 = s.forceCgroupv1 && has("cgroup2") && !unprivileged,
             enableAnland = anland,
             enableTermuxX11 = s.enableTermuxX11 && !anland && has("termux") && has("termux_x11"),
