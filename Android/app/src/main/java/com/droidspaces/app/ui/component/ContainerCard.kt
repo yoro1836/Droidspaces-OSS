@@ -53,6 +53,7 @@ data class ContainerCardActions(
     val onMigrate: () -> Unit = {},
     val onResize: () -> Unit = {},
     val onExport: () -> Unit = {},
+    val onSnapshots: () -> Unit = {},
     val onToggleExpand: () -> Unit = {},
     val onShowLogs: () -> Unit = {},
 )
@@ -321,6 +322,16 @@ fun ContainerCard(
                             label = context.getString(R.string.resize_sparse_image),
                             tint = MaterialTheme.colorScheme.secondary,
                             onClick = actions.onResize
+                        )
+                    }
+
+                    // Snapshots are layers over an image, a directory rootfs has none.
+                    if (container.useSparseImage) {
+                        ActionItem(
+                            icon = rememberVectorPainter(Icons.Default.History),
+                            label = context.getString(R.string.snapshots),
+                            tint = MaterialTheme.colorScheme.secondary,
+                            onClick = actions.onSnapshots
                         )
                     }
 

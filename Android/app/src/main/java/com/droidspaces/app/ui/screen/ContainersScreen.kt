@@ -62,6 +62,7 @@ import com.droidspaces.app.ui.component.ContainerCardActions
 import com.droidspaces.app.ui.component.DialogFooterRow
 import com.droidspaces.app.ui.component.TerminalDialog
 import com.droidspaces.app.ui.component.ExportContainerDialog
+import com.droidspaces.app.ui.component.SnapshotsDialog
 import com.droidspaces.app.util.ValidationUtils
 import com.droidspaces.app.ui.component.EmptyState
 import com.droidspaces.app.ui.component.ErrorState
@@ -108,6 +109,7 @@ fun ContainersScreen(
     var pendingExportContainer by remember { mutableStateOf<ContainerInfo?>(null) }
     var pendingExportEnv by remember { mutableStateOf(false) }
     var askExportEnv by remember { mutableStateOf<ContainerInfo?>(null) }
+    var showSnapshots by remember { mutableStateOf<ContainerInfo?>(null) }
     var showRepoSheet by remember { mutableStateOf(false) }
     var fabMenuExpanded by rememberSaveable { mutableStateOf(false) }
 
@@ -246,6 +248,10 @@ fun ContainersScreen(
                                     onExpandedContainerNameChange(null)
                                     pendingSparseOperation = container to SparseOp.RESIZE
                                 },
+                                onSnapshots = {
+                                    onExpandedContainerNameChange(null)
+                                    showSnapshots = container
+                                },
                                 onExport = {
                                     onExpandedContainerNameChange(null)
                                     // Only a container with env vars has something to decide.
@@ -369,6 +375,10 @@ fun ContainersScreen(
                 },
                 isBlocking = isBlocking // Block dismissal when operation is running
             )
+        }
+
+        showSnapshots?.let { container ->
+            SnapshotsDialog(container = container, onDismiss = { showSnapshots = null })
         }
 
         askExportEnv?.let { container ->

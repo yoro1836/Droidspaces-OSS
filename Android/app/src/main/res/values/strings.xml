@@ -776,4 +776,17 @@
     <string name="upstream_max">Up to %1$d interfaces. Untick one to add another.</string>
     <string name="bind_path_separator">Paths cannot contain , or :</string>
     <string name="keep_editing">Keep editing</string>
+
+    <!-- Snapshots -->
+    <string name="snapshots">Snapshots</string>
+    <string name="snapshots_title">Snapshots of %1$s</string>
+    <string name="snapshots_body">A snapshot keeps the container as it is now. It takes a moment and only costs what changes afterwards.</string>
+    <string name="snapshots_stop_first">Stop the container to take, restore or delete a snapshot.</string>
+    <string name="snapshots_working">Working…</string>
+    <string name="snapshot_label">Label</string>
+    <string name="snapshot_take">Take snapshot</string>
+    <string name="snapshot_delete">Delete snapshot</string>
+    <string name="snapshot_supporting">%1$s · %2$s MB changed after</string>
+    <string name="snapshot_restore_body">The container goes back to this snapshot. Everything written after it is lost, later snapshots included.</string>
+    <string name="snapshot_delete_body">Only the snapshot is removed. The container stays as it is now. This can take a while if much changed after it.</string>
 </resources>

@@ -522,4 +522,17 @@
     <string name="repo_custom_url_empty">URL은 비워둘 수 없습니다</string>
     <string name="repo_custom_url_invalid">URL은 https://로 시작해야 합니다</string>
     <string name="debugging_section">디버깅</string>
+
+    <!-- Snapshots -->
+    <string name="snapshots">스냅샷</string>
+    <string name="snapshots_title">%1$s 스냅샷</string>
+    <string name="snapshots_body">스냅샷은 컨테이너의 지금 상태를 보존합니다. 찍는 데 잠깐이면 되고, 이후 바뀐 만큼만 용량을 씁니다.</string>
+    <string name="snapshots_stop_first">스냅샷을 찍거나 되돌리거나 지우려면 컨테이너를 먼저 중지하세요.</string>
+    <string name="snapshots_working">작업 중…</string>
+    <string name="snapshot_label">이름</string>
+    <string name="snapshot_take">스냅샷 찍기</string>
+    <string name="snapshot_delete">스냅샷 삭제</string>
+    <string name="snapshot_supporting">%1$s · 이후 변경 %2$s MB</string>
+    <string name="snapshot_restore_body">컨테이너가 이 스냅샷 시점으로 돌아갑니다. 이후에 쓴 내용과 이후에 찍은 스냅샷은 모두 사라집니다.</string>
+    <string name="snapshot_delete_body">스냅샷만 지워지고 컨테이너는 지금 상태 그대로 남습니다. 이후 변경이 많았다면 시간이 걸릴 수 있습니다.</string>
 </resources>
