@@ -179,7 +179,7 @@ reboot_loop:;
      * The cgroup namespace (Linux 4.6+) is unshared here, after the join: its
      * root is wherever we sit at that moment, and from the root cgroup it
      * would isolate nothing. */
-    ds_cgroup_join(cfg->container_name);
+    int cgroup_back = ds_cgroup_join(cfg->container_name);
 
     int clone_flags = CLONE_NEWPID;
     if (cfg->net_mode != DS_NET_HOST)
@@ -213,6 +213,8 @@ reboot_loop:;
        * is how it knows the boot is over. Do not close it here. */
       _exit(internal_boot(cfg));
     }
+
+    ds_cgroup_leave(cgroup_back);
 
     /* Intermediate: redirect stdio to /dev/null NOW (after forking init).
      * It only exists to wait for init and has no business talking to the

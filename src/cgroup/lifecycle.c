@@ -82,11 +82,41 @@ static int cgroup_join(const char *container_name, const char *leaf) {
 }
 
 /* The per-boot intermediate calls this before it unshares, so that init and
- * the cgroup namespace both start at the root of the container's cgroups. */
-void ds_cgroup_join(const char *container_name) {
+ * the cgroup namespace both start at the root of the container's cgroups.
+ * Returns a handle on the cgroup2 dir it came from, for ds_cgroup_leave(). */
+int ds_cgroup_join(const char *container_name) {
+  /* Opened now, while we are still the host's root standing in the host's
+   * cgroup namespace: the kernel checks a migration against whoever opened
+   * cgroup.procs. */
+  char line[PATH_MAX], path[PATH_MAX + 64];
+  int back = -1;
+  FILE *f = fopen("/proc/self/cgroup", "re");
+  while (f && fgets(line, sizeof(line), f))
+    if (strncmp(line, "0::", 3) == 0) {
+      line[strcspn(line, "\n")] = '\0';
+      snprintf(path, sizeof(path), "/sys/fs/cgroup%s/cgroup.procs", line + 3);
+      back = open(path, O_WRONLY | O_CLOEXEC);
+    }
+  if (f)
+    fclose(f);
+
   if (cgroup_join(container_name, NULL) < 0)
     ds_warn("[CGROUP] Could not join the container's cgroup: %s",
             strerror(errno));
+  return back;
+}
+
+/* The intermediate steps back out once init is forked. cgroup2 does not let
+ * a cgroup with a process in it hand controllers to its children, so with us
+ * parked in the container's root systemd inside could never pass memory on
+ * to its slices: no limits for user sessions, podman or docker in there. */
+void ds_cgroup_leave(int back) {
+  if (back < 0)
+    return;
+  if (dprintf(back, "%d", (int)getpid()) < 0)
+    ds_warn("[CGROUP] Could not leave the container's cgroup: %s",
+            strerror(errno));
+  close(back);
 }
 
 /* Put the calling process inside the container's cgroups before it setns()es
