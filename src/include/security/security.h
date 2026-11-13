@@ -27,7 +27,8 @@ int ds_peer_in_pidns(pid_t peer_pid);
 int ds_peer_authorized(int fd, const char *group_name);
 
 /* seccomp.c */
-int ds_seccomp_apply_minimal(int privileged_mask, int sandboxing_allowed);
+int ds_seccomp_apply_minimal(int privileged_mask, int sandboxing_allowed,
+                             int unprivileged);
 
 /* KernelSU container-escape hardening: ask KSU to mark the current thread
  * (TIF_KSU_DISABLE_ESCAPE_WITH_ROOT via KSU_IOCTL_DISABLE_ESCAPE_TO_ROOT)

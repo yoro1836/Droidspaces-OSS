@@ -37,12 +37,13 @@
  * Blocks direct host kernel takeover vectors (module loading, kexec).
  * Applied unconditionally to all kernels and all modes.
  */
-int ds_seccomp_apply_minimal(int privileged_mask, int sandboxing_allowed) {
+int ds_seccomp_apply_minimal(int privileged_mask, int sandboxing_allowed,
+                             int unprivileged) {
   /* noseccomp: skip everything, 32-bit binaries must work */
   if (privileged_mask & DS_PRIV_NOSEC)
     return 0;
 
-  static struct sock_filter filter[74];
+  static struct sock_filter filter[80];
   int curr = 0;
 
   /* 1. Validate Architecture */
@@ -233,6 +234,23 @@ int ds_seccomp_apply_minimal(int privileged_mask, int sandboxing_allowed) {
       BPF_RET | BPF_K, SECCOMP_RET_ERRNO | (EPERM & SECCOMP_RET_DATA));
 #endif
 
+  /* The kernel log, bpf() and perf are gated by host sysctls, not by
+   * capabilities, and Android ships all three wide open (dmesg_restrict=0,
+   * unprivileged_bpf_disabled=0, perf_event_paranoid=-1). Root in a user
+   * namespace is the unprivileged user those sysctls let in, so it could read
+   * the host's dmesg and profile the kernel. A privileged container is real
+   * root and keeps them: Docker inside one loads cgroup device programs. */
+  if (unprivileged) {
+    static const int host_wide[] = {__NR_syslog, __NR_bpf,
+                                    __NR_perf_event_open};
+    for (size_t i = 0; i < sizeof(host_wide) / sizeof(host_wide[0]); i++) {
+      filter[curr++] = (struct sock_filter)BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K,
+                                                    host_wide[i], 0, 1);
+      filter[curr++] = (struct sock_filter)BPF_STMT(
+          BPF_RET | BPF_K, SECCOMP_RET_ERRNO | (EPERM & SECCOMP_RET_DATA));
+    }
+  }
+
   /* Allow everything else */
   filter[curr++] =
       (struct sock_filter)BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW);
@@ -276,6 +294,7 @@ void ds_ksu_neutralize_root_escape(void) {
  * magic reboot() its ioctl needs. Capabilities are dropped after this. */
 void ds_seccomp_harden(const struct ds_config *cfg) {
   ds_ksu_neutralize_root_escape();
-  ds_seccomp_apply_minimal(cfg->privileged_mask, cfg->sandboxing_allowed);
+  ds_seccomp_apply_minimal(cfg->privileged_mask, cfg->sandboxing_allowed,
+                           cfg->unprivileged);
   ds_seccomp_keyring_shim(cfg->privileged_mask);
 }
