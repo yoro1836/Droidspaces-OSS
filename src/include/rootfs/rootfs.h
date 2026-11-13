@@ -21,6 +21,7 @@ int ds_snapshot_create(struct ds_config *cfg, const char *label);
 int ds_snapshot_list(struct ds_config *cfg);
 int ds_snapshot_restore(struct ds_config *cfg, int n);
 int ds_snapshot_delete(struct ds_config *cfg, int n);
+int ds_container_clone(struct ds_config *cfg, const char *new_name);
 int ds_img_mount_point(const char *name, char *buf, size_t size);
 
 /* mount.c */

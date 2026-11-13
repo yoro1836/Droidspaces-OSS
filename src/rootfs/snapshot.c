@@ -29,6 +29,13 @@ static int layer_create(const char *img_path, int n, const struct stat *root) {
     ds_error("Snapshots need a rootfs image file.");
     return -1;
   }
+  /* A resize grows the layer being written, so the newest one has the size
+   * the user last asked for. */
+  struct stat prev;
+  snprintf(mnt, sizeof(mnt), "%s/%d.img", dir, n - 1);
+  if (n > 1 && stat(mnt, &prev) == 0 && prev.st_size > base.st_size)
+    base.st_size = prev.st_size;
+  snprintf(mnt, sizeof(mnt), "%s/.mnt", dir);
 
   int fd = open(img, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
   if (fd < 0 || ftruncate(fd, base.st_size) < 0) {
@@ -259,6 +266,47 @@ fail:
   return 1;
 }
 
+/* A clone shares the frozen images of its origin by hard link. Before one is
+ * written to, by a merge, it gets a copy of its own. Holes stay holes. */
+static int own_copy(const char *img) {
+  struct stat st;
+  char tmp[PATH_MAX + 8];
+  static char buf[1 << 20];
+  if (stat(img, &st) < 0 || st.st_nlink < 2)
+    return 0;
+
+  ds_log("%s is shared with a clone, copying it first...", img);
+  snprintf(tmp, sizeof(tmp), "%s.own", img);
+  int in = open(img, O_RDONLY | O_CLOEXEC);
+  int out = open(tmp, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
+  int ok = in >= 0 && out >= 0 && ftruncate(out, st.st_size) == 0;
+  off_t data = 0, hole;
+  while (ok && (data = lseek(in, data, SEEK_DATA)) >= 0) {
+    hole = lseek(in, data, SEEK_HOLE);
+    if (hole < 0)
+      hole = st.st_size;
+    while (ok && data < hole) {
+      size_t want = (size_t)(hole - data) < sizeof(buf) ? (size_t)(hole - data)
+                                                        : sizeof(buf);
+      ssize_t got = pread(in, buf, want, data);
+      ok = got > 0 && pwrite(out, buf, (size_t)got, data) == got;
+      data += got;
+    }
+  }
+  /* ENXIO is lseek's "no more data", the normal way out */
+  ok = ok && errno == ENXIO;
+  if (in >= 0)
+    close(in);
+  if (out >= 0 && (fsync(out) < 0 || close(out) < 0))
+    ok = 0;
+  if (!ok || rename(tmp, img) < 0) {
+    ds_error("Failed to copy %s: %s", img, strerror(errno));
+    unlink(tmp);
+    return -1;
+  }
+  return 0;
+}
+
 int ds_snapshot_delete(struct ds_config *cfg, int n) {
   char dir[PATH_MAX], from[PATH_MAX + 32], to[PATH_MAX + 32];
   char src[PATH_MAX + 32];
@@ -279,7 +327,13 @@ int ds_snapshot_delete(struct ds_config *cfg, int n) {
   mkdir(src, 0700);
   mkdir(merge_dst, 0700);
 
-  int failed = mount_image(from, src, 1) < 0;
+  /* The image the merge writes into: the layer below, or the base. */
+  if (n == 1)
+    safe_strncpy(to, img, sizeof(to));
+  else
+    snprintf(to, sizeof(to), "%s/%d.img", dir, n - 1);
+
+  int failed = own_copy(to) < 0 || mount_image(from, src, 1) < 0;
   if (!failed) {
     failed = (n == 1 ? mount_image(img, merge_dst, 0)
                      : mount_layers(img, merge_dst, n - 1)) < 0;
@@ -310,5 +364,98 @@ int ds_snapshot_delete(struct ds_config *cfg, int n) {
   }
   rmdir(dir); /* goes only when the last layer has */
   ds_log("Snapshot %d deleted.", n);
+  return 0;
+}
+
+/* A second container that starts out as this one is now. The two share every
+ * image up to this moment by hard link and each writes to a layer of its own,
+ * so a clone is as quick and as cheap as a snapshot. */
+int ds_container_clone(struct ds_config *cfg, const char *new_name) {
+  char src_dir[PATH_MAX], dst_cfg[PATH_MAX], dst_dir[PATH_MAX];
+  char dst_img[PATH_MAX * 2], from[PATH_MAX * 2], to[PATH_MAX * 2];
+  char label[160], line[PATH_MAX * 2];
+  const char *img = cfg->rootfs_img_path;
+  struct stat root;
+
+  if (snapshot_precheck(cfg) < 0)
+    return -1;
+  if (!new_name || !validate_container_name(new_name) ||
+      ds_config_host_path(new_name, dst_cfg, sizeof(dst_cfg)) < 0) {
+    ds_error("Give the clone a valid name: clone NEW_NAME.");
+    return -1;
+  }
+  safe_strncpy(dst_dir, dst_cfg, sizeof(dst_dir));
+  *strrchr(dst_dir, '/') = '\0';
+  if (access(dst_dir, F_OK) == 0) {
+    ds_error("A container named '%s' already exists.", new_name);
+    return -1;
+  }
+
+  /* Freeze what the origin has now. Both go on from this snapshot. */
+  snprintf(label, sizeof(label), "before clone %s", new_name);
+  if (ds_snapshot_create(cfg, label) < 0 || current_root_stat(cfg, &root) < 0)
+    return -1;
+  int frozen = ds_layers_top(img) - 1;
+
+  const char *base = strrchr(img, '/');
+  base = base ? base + 1 : img;
+  snprintf(dst_img, sizeof(dst_img), "%s/%s", dst_dir, base);
+  ds_layers_dir(img, src_dir, sizeof(src_dir));
+  snprintf(to, sizeof(to), "%s.layers", dst_img);
+  int ok = mkdir_p(to, 0700) == 0 && link(img, dst_img) == 0;
+  for (int i = 1; ok && i <= frozen; i++) {
+    snprintf(from, sizeof(from), "%s/%d.img", src_dir, i);
+    snprintf(to, sizeof(to), "%s.layers/%d.img", dst_img, i);
+    ok = link(from, to) == 0;
+    snprintf(from, sizeof(from), "%s/%d.label", src_dir, i);
+    snprintf(to, sizeof(to), "%s.layers/%d.label", dst_img, i);
+    if (read_file(from, label, sizeof(label)) > 0)
+      write_file(to, label);
+  }
+  if (!ok) {
+    ds_error("Failed to link the images into %s: %s (clones need the same "
+             "filesystem as their origin)",
+             dst_dir, strerror(errno));
+    return -1;
+  }
+  if (layer_create(dst_img, frozen + 1, &root) < 0)
+    return -1;
+  snprintf(label, sizeof(label), "cloned from %s", cfg->container_name);
+  layer_label_path(dst_img, frozen + 1, to, sizeof(to));
+  write_file(to, label);
+
+  /* The origin's config, line for line, so the keys only the app knows come
+   * along. The uuid stays behind: it names one container. */
+  if (!cfg->config_file[0])
+    ds_config_host_path(cfg->container_name, cfg->config_file,
+                        sizeof(cfg->config_file));
+  FILE *in = fopen(cfg->config_file, "re"), *out = fopen(dst_cfg, "we");
+  while (in && out && fgets(line, sizeof(line), in)) {
+    if (strncmp(line, "name=", 5) == 0)
+      fprintf(out, "name=%s\n", new_name);
+    else if (strncmp(line, "hostname=", 9) == 0)
+      fprintf(out, "hostname=%s\n", new_name);
+    else if (strncmp(line, "rootfs_path=", 12) == 0)
+      fprintf(out, "rootfs_path=%s\n", dst_img);
+    else if (strncmp(line, "env_file=", 9) == 0) {
+      line[strcspn(line, "\n")] = '\0';
+      snprintf(to, sizeof(to), "%s/.env", dst_dir);
+      if (read_file(line + 9, from, sizeof(from)) > 0)
+        write_file(to, from);
+      fprintf(out, "env_file=%s\n", to);
+    } else if (strncmp(line, "uuid=", 5) != 0 &&
+               strncmp(line, "pidfile=", 8) != 0)
+      fputs(line, out);
+  }
+  ok = in && out;
+  if (in)
+    fclose(in);
+  if (out && fclose(out) != 0)
+    ok = 0;
+  if (!ok) {
+    ds_error("Failed to write %s: %s", dst_cfg, strerror(errno));
+    return -1;
+  }
+  ds_log("'%s' cloned to '%s'.", cfg->container_name, new_name);
   return 0;
 }

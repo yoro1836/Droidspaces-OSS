@@ -334,6 +334,7 @@ int main(int argc, char **argv) {
                           strcmp(discovered_cmd, "rollback") == 0 ||
                           strcmp(discovered_cmd, "snapshot-delete") == 0 ||
                           strcmp(discovered_cmd, "image-mount") == 0 ||
+                          strcmp(discovered_cmd, "clone") == 0 ||
                           strcmp(discovered_cmd, "image-umount") == 0 ||
                           strcmp(discovered_cmd, "enter") == 0 ||
                           strcmp(discovered_cmd, "run") == 0));
@@ -556,6 +557,11 @@ int main(int argc, char **argv) {
       printf("%s\n", mnt);
       ret = 0;
     }
+    goto cleanup;
+  }
+
+  if (strcmp(cmd, "clone") == 0) {
+    ret = ds_container_clone(&cfg, optind + 1 < argc ? argv[optind + 1] : NULL);
     goto cleanup;
   }
 
