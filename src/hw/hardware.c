@@ -10,16 +10,16 @@
 #include "internal.h"
 
 /*
- * setup_gpu_groups()
+ * ensure_group()
  *
- * After pivot_root, make sure the container's /etc/group carries the unified
- * GPU group. A rootfs that already has GID 786, under whatever name, is left
+ * After pivot_root, make sure the container's /etc/group carries a group
+ * with this GID. A rootfs that already has it, under whatever name, is left
  * alone, so the call is idempotent across restarts.
  */
-static int setup_gpu_groups(void) {
+static int ensure_group(const char *name, int want_gid) {
   /* Check if /etc/group exists - some minimal rootfs may not have it */
   if (access("/etc/group", F_OK) != 0) {
-    ds_warn("No /etc/group found, skipping GPU group setup");
+    ds_warn("No /etc/group found, skipping group %s", name);
     return 0;
   }
 
@@ -60,7 +60,7 @@ static int setup_gpu_groups(void) {
     /* name:password:GID:users; only the GID matters here */
     const char *gid = strchr(line, ':');
     gid = gid ? strchr(gid + 1, ':') : NULL;
-    if (gid && atoi(gid + 1) == DS_GPU_UNIFIED_GID)
+    if (gid && atoi(gid + 1) == want_gid)
       unified_group_found = 1;
     fputs(line, fout);
   }
@@ -68,9 +68,8 @@ static int setup_gpu_groups(void) {
   /* No members: the nodes are owned by root, and anyone else is added by hand.
    */
   if (!unified_group_found) {
-    fprintf(fout, DS_GPU_GROUP_NAME ":x:%d:\n", DS_GPU_UNIFIED_GID);
-    ds_log("[GPU] Created unified group " DS_GPU_GROUP_NAME " (GID %d)",
-           DS_GPU_UNIFIED_GID);
+    fprintf(fout, "%s:x:%d:\n", name, want_gid);
+    ds_log("Created group %s (GID %d)", name, want_gid);
   }
 
   fclose(fin);
@@ -104,7 +103,13 @@ int setup_hardware_access(struct ds_config *cfg) {
    *               unified droidspaces-gpu group so the container user can
    *               actually open those nodes. */
   if (cfg->hw_access || cfg->gpu_mode)
-    setup_gpu_groups();
+    ensure_group(DS_GPU_GROUP_NAME, DS_GPU_UNIFIED_GID);
+
+  /* Android's ACLs on shared storage let media_rw in, and an unprivileged
+   * container keeps that gid mapped: a user added to this group reaches
+   * /storage/emulated/0 without becoming root first. */
+  if (cfg->unprivileged && cfg->android_storage && is_android())
+    ensure_group(DS_STORAGE_GROUP_NAME, DS_AID_MEDIA_RW);
 
   /* 2. Bridge the host X11 socket when --x11 is set */
   ds_setup_x11_socket(cfg);

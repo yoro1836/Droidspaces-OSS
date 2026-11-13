@@ -44,6 +44,13 @@
 /* android.c */
 void android_optimizations(int enable);
 void android_remount_data_suid(void);
+/* Android's ids for shared storage: the group its ACLs let in, and the range
+ * app uids come from. An unprivileged container with storage on keeps both
+ * as they are on the host, see security/userns.c. */
+#define DS_AID_MEDIA_RW 1023u
+#define DS_AID_APP_START 10000u
+#define DS_AID_APP_COUNT 10000u
+#define DS_STORAGE_GROUP_NAME "droidspaces-storage"
 int android_setup_storage(const char *rootfs_path, int unprivileged);
 
 /* anland/anland.c */

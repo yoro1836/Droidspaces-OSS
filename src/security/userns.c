@@ -63,9 +63,6 @@ struct ds_mount_attr {
  * then has its capabilities over such files, which the kernel grants only
  * for an inode whose uid and gid are both mapped, and still none over
  * anything owned by the host's root or system. */
-#define DS_AID_MEDIA_RW 1023u
-#define DS_AID_APP_START 10000u
-#define DS_AID_APP_COUNT 10000u
 
 static int write_id_map(pid_t pid, const char *file, int storage) {
   char path[64], map[256];
