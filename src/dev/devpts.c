@@ -7,6 +7,33 @@
 
 #include "droidspaces.h"
 
+/* gid= is meant to be read in the mounter's user namespace. A kernel built
+ * without CONFIG_USER_NS, whose user namespaces come from a module, reads it
+ * as a host gid: in an unprivileged container every pty then belongs to a
+ * group with no mapping, shows up as nobody, and sudo cannot chown it. Look
+ * at what a fresh pty got, and if that is not the tty group, ask again with
+ * the host id our tty group maps to. */
+static void fix_foreign_gid(const char *pts_path) {
+  char ptmx[PATH_MAX], name[64], opts[96];
+  int master = -1, slave = -1;
+  struct stat st;
+  snprintf(ptmx, sizeof(ptmx), "%s/ptmx", pts_path);
+  if (ds_openpty(ptmx, &master, &slave, name) < 0)
+    return;
+  int foreign = fstat(slave, &st) == 0 && st.st_gid != DS_DEFAULT_TTY_GID;
+  close(slave);
+  close(master);
+  if (!foreign)
+    return;
+
+  snprintf(opts, sizeof(opts), "gid=%u,ptmxmode=0666,mode=0620",
+           DS_USERNS_BASE + DS_DEFAULT_TTY_GID);
+  if (mount("devpts", pts_path, "devpts", MS_REMOUNT | MS_NOSUID | MS_NOEXEC,
+            opts) < 0)
+    ds_warn("Failed to give ptys to the container's tty group: %s",
+            strerror(errno));
+}
+
 int setup_devpts(int hw_access) {
   const char *pts_path = "/dev/pts";
 
@@ -27,6 +54,8 @@ int setup_devpts(int hw_access) {
   for (int i = 0; opts[i]; i++) {
     if (domount("devpts", pts_path, "devpts", MS_NOSUID | MS_NOEXEC, opts[i]) ==
         0) {
+      if (i == 0)
+        fix_foreign_gid(pts_path);
       /* Setup /dev/ptmx to point to the new pts/ptmx */
       const char *ptmx_path = "/dev/ptmx";
       const char *pts_ptmx = "/dev/pts/ptmx";
