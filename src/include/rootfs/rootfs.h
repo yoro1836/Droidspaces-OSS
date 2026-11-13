@@ -15,6 +15,11 @@ int setup_custom_binds(struct ds_config *cfg, const char *rootfs);
 int mount_rootfs_img(const char *img_path, char *mount_point, size_t mp_size,
                      const char *name);
 int unmount_rootfs_img(const char *mount_point, int silent);
+int ds_layers_dir(const char *img_path, char *buf, size_t size);
+int ds_layers_top(const char *img_path);
+int ds_snapshot_create(struct ds_config *cfg, const char *label);
+int ds_snapshot_list(struct ds_config *cfg);
+int ds_snapshot_restore(struct ds_config *cfg, int n);
 int ds_img_mount_point(const char *name, char *buf, size_t size);
 
 /* mount.c */

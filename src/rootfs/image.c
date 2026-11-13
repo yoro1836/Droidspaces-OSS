@@ -306,13 +306,10 @@ static int ext4_needs_fsck(const unsigned char sb[1024]) {
   return 0;
 }
 
-int mount_rootfs_img(const char *img_path, char *mount_point, size_t mp_size,
-                     const char *name) {
-  if (find_available_mountpoint(name, mount_point, mp_size) < 0) {
-    ds_error("Failed to find available mount point for %s", name);
-    return -1;
-  }
-
+/* Mount one image file on dir. read_only is for the frozen layers under a
+ * snapshot, which several containers may share. */
+static int mount_image(const char *img_path, const char *mount_point,
+                       int read_only) {
   /* Detect filesystem type from superblock magic */
   unsigned char sb[1024];
   const char *fstype = detect_fs_type(img_path, sb);
@@ -339,9 +336,11 @@ int mount_rootfs_img(const char *img_path, char *mount_point, size_t mp_size,
 
   /*
    * Build mount flags: base VFS flags + any fstype-specific extras.
-   * pivot_root requires a writable mount to create .old_root, so no MS_RDONLY.
+   * pivot_root requires a writable mount to create .old_root, so no MS_RDONLY
+   * unless an overlay goes on top.
    */
-  unsigned long mnt_flags = MS_NOATIME | MS_NODIRATIME;
+  unsigned long mnt_flags =
+      MS_NOATIME | MS_NODIRATIME | (read_only ? MS_RDONLY : 0);
   const char *mnt_data = NULL;
 
   /* Loop sector size for direct I/O. It must not exceed the filesystem's
@@ -412,6 +411,99 @@ int mount_rootfs_img(const char *img_path, char *mount_point, size_t mp_size,
   return -1;
 }
 
+/* Snapshots. An image with snapshots has a "<image>.layers" directory beside
+ * it holding 1.img, 2.img, ... Each is a small ext4 image with the changes
+ * made since the snapshot before it, and the highest one is being written.
+ * Taking a snapshot only adds an empty image on top, and going back to one
+ * only drops the images above it, so neither copies the rootfs.
+ *
+ * The images cannot be plain directories: Android's /data is f2fs with
+ * casefolding, which overlayfs refuses, the same reason KernelSU keeps its
+ * modules in an ext4 image. */
+int ds_layers_dir(const char *img_path, char *buf, size_t size) {
+  int r = snprintf(buf, size, "%s.layers", img_path);
+  return (r > 0 && (size_t)r < size) ? 0 : -1;
+}
+
+/* The number of the top layer, 0 for an image without snapshots. */
+int ds_layers_top(const char *img_path) {
+  char dir[PATH_MAX], path[PATH_MAX + 32];
+  int top = 0;
+  if (ds_layers_dir(img_path, dir, sizeof(dir)) < 0)
+    return 0;
+  for (;; top++) {
+    snprintf(path, sizeof(path), "%s/%d.img", dir, top + 1);
+    if (access(path, F_OK) != 0)
+      return top;
+  }
+}
+
+/* The base image and every layer, each on its own directory, with an overlay
+ * of them all on mount_point. The parts are detached again straight away:
+ * the overlay holds them, so they live exactly as long as it does and a stop
+ * still has just the one mount to take down. */
+static int mount_layers(const char *img_path, const char *mount_point,
+                        int top) {
+  char dir[PATH_MAX], stage[PATH_MAX], part[PATH_MAX + 32];
+  char img[PATH_MAX + 32], lower[8192] = "", opts[8192 + 2 * PATH_MAX];
+  int ret = -1, mounted = 0;
+
+  ds_layers_dir(img_path, dir, sizeof(dir));
+  snprintf(stage, sizeof(stage), "%s.parts", mount_point);
+  mkdir(stage, 0700);
+
+  for (int n = 0; n <= top; n++, mounted++) {
+    snprintf(part, sizeof(part), "%s/%d", stage, n);
+    mkdir(part, 0700);
+    if (n == 0)
+      safe_strncpy(img, img_path, sizeof(img));
+    else
+      snprintf(img, sizeof(img), "%s/%d.img", dir, n);
+    if (mount_image(img, part, n < top) < 0)
+      goto out;
+    /* overlayfs wants the newest lower first */
+    if (n < top) {
+      char prev[sizeof(lower)];
+      safe_strncpy(prev, lower, sizeof(prev));
+      if (snprintf(lower, sizeof(lower), "%s%s%s%s", part, n ? "/up" : "",
+                   prev[0] ? ":" : "", prev) >= (int)sizeof(lower)) {
+        ds_error("Too many snapshots to mount, restore an older one.");
+        mounted++;
+        goto out;
+      }
+    }
+  }
+
+  snprintf(opts, sizeof(opts), "lowerdir=%s,upperdir=%s/up,workdir=%s/work",
+           lower, part, part);
+  ret = mount("overlay", mount_point, "overlay", MS_NOATIME, opts);
+  if (ret < 0)
+    ds_error("Failed to mount the snapshot layers of %s: %s", img_path,
+             strerror(errno));
+
+out:
+  for (int n = 0; n < mounted; n++) {
+    snprintf(part, sizeof(part), "%s/%d", stage, n);
+    umount2(part, MNT_DETACH);
+    rmdir(part);
+  }
+  rmdir(stage);
+  return ret;
+}
+
+int mount_rootfs_img(const char *img_path, char *mount_point, size_t mp_size,
+                     const char *name) {
+  if (find_available_mountpoint(name, mount_point, mp_size) < 0) {
+    ds_error("Failed to find available mount point for %s", name);
+    return -1;
+  }
+
+  int top = ds_layers_top(img_path);
+  if (top > 0)
+    return mount_layers(img_path, mount_point, top);
+  return mount_image(img_path, mount_point, 0);
+}
+
 int unmount_rootfs_img(const char *mount_point, int silent) {
   if (!mount_point || !mount_point[0])
     return 0;
@@ -449,5 +541,156 @@ int unmount_rootfs_img(const char *mount_point, int silent) {
       ds_warn("Cleanup warning: %s is still busy/mounted.", mount_point);
   }
 
+  return 0;
+}
+
+/* A new, empty top layer, the size of the base image and sparse like it.
+ * Its "up" directory becomes the root of the container, so it takes the
+ * owner and mode the root has now: an unprivileged container recognises a
+ * shifted rootfs by that owner. */
+static int layer_create(const char *img_path, int n, const struct stat *root) {
+  char dir[PATH_MAX], img[PATH_MAX + 32], mnt[PATH_MAX + 32];
+  char sub[PATH_MAX + 64];
+  struct stat base;
+
+  ds_layers_dir(img_path, dir, sizeof(dir));
+  snprintf(img, sizeof(img), "%s/%d.img", dir, n);
+  snprintf(mnt, sizeof(mnt), "%s/.mnt", dir);
+  if (stat(img_path, &base) < 0 || !S_ISREG(base.st_mode)) {
+    ds_error("Snapshots need a rootfs image file.");
+    return -1;
+  }
+
+  int fd = open(img, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+  if (fd < 0 || ftruncate(fd, base.st_size) < 0) {
+    ds_error("Failed to create %s: %s", img, strerror(errno));
+    if (fd >= 0)
+      close(fd);
+    unlink(img);
+    return -1;
+  }
+  close(fd);
+
+  /* 4 KiB blocks whatever the size: Android's loop devices cannot serve a
+   * filesystem with smaller ones. */
+  char *mkfs[] = {"mke2fs", "-t", "ext4", "-b", "4096", "-q", "-F", img, NULL};
+  int ok = run_command_quiet(mkfs) == 0;
+  mkdir(mnt, 0700);
+  if (ok && (ok = mount_image(img, mnt, 0) == 0)) {
+    snprintf(sub, sizeof(sub), "%s/work", mnt);
+    ok = mkdir(sub, 0700) == 0;
+    snprintf(sub, sizeof(sub), "%s/up", mnt);
+    ok = ok && mkdir(sub, 0755) == 0 &&
+         chown(sub, root->st_uid, root->st_gid) == 0 &&
+         chmod(sub, root->st_mode & 07777) == 0;
+    unmount_rootfs_img(mnt, 1);
+  }
+  rmdir(mnt);
+  if (!ok) {
+    ds_error("Failed to prepare the snapshot layer %s (is mke2fs installed?)",
+             img);
+    unlink(img);
+    return -1;
+  }
+  return 0;
+}
+
+static void layer_label_path(const char *img_path, int n, char *buf,
+                             size_t size) {
+  char dir[PATH_MAX];
+  ds_layers_dir(img_path, dir, sizeof(dir));
+  snprintf(buf, size, "%s/%d.label", dir, n);
+}
+
+/* What the root of the container looks like right now, layers and all. */
+static int current_root_stat(struct ds_config *cfg, struct stat *st) {
+  char mnt[PATH_MAX];
+  if (mount_rootfs_img(cfg->rootfs_img_path, mnt, sizeof(mnt),
+                       cfg->container_name) < 0)
+    return -1;
+  int r = stat(mnt, st);
+  sync();
+  unmount_rootfs_img(mnt, 1);
+  return r;
+}
+
+static int snapshot_precheck(struct ds_config *cfg) {
+  if (!cfg->rootfs_img_path[0]) {
+    ds_error("Snapshots need a container on a rootfs image (-i).");
+    return -1;
+  }
+  if (is_container_running(cfg, NULL)) {
+    ds_error("Stop '%s' first.", cfg->container_name);
+    return -1;
+  }
+  return 0;
+}
+
+int ds_snapshot_create(struct ds_config *cfg, const char *label) {
+  char dir[PATH_MAX], path[PATH_MAX + 32];
+  struct stat root;
+  if (snapshot_precheck(cfg) < 0 || current_root_stat(cfg, &root) < 0)
+    return -1;
+
+  int n = ds_layers_top(cfg->rootfs_img_path) + 1;
+  ds_layers_dir(cfg->rootfs_img_path, dir, sizeof(dir));
+  mkdir(dir, 0700);
+  if (layer_create(cfg->rootfs_img_path, n, &root) < 0)
+    return -1;
+
+  layer_label_path(cfg->rootfs_img_path, n, path, sizeof(path));
+  write_file(path, label && label[0] ? label : "snapshot");
+  ds_log("Snapshot %d taken of '%s'.", n, cfg->container_name);
+  return 0;
+}
+
+int ds_snapshot_list(struct ds_config *cfg) {
+  char dir[PATH_MAX], path[PATH_MAX + 32], label[128], when[32];
+  int top = ds_layers_top(cfg->rootfs_img_path);
+  ds_layers_dir(cfg->rootfs_img_path, dir, sizeof(dir));
+
+  /* One per line for the app: number, time, MiB written since, label. */
+  for (int n = 1; n <= top; n++) {
+    struct stat st = {0};
+    layer_label_path(cfg->rootfs_img_path, n, path, sizeof(path));
+    label[0] = '\0';
+    read_file(path, label, sizeof(label));
+    label[strcspn(label, "\n")] = '\0';
+    stat(path, &st);
+    strftime(when, sizeof(when), "%Y-%m-%d %H:%M", localtime(&st.st_mtime));
+    snprintf(path, sizeof(path), "%s/%d.img", dir, n);
+    stat(path, &st);
+    printf("%d\t%s\t%lld\t%s\n", n, when,
+           (long long)st.st_blocks * 512 / (1024 * 1024), label);
+  }
+  return 0;
+}
+
+/* Back to snapshot n: everything written after it goes, later snapshots
+ * included, and n gets a fresh layer to write into. */
+int ds_snapshot_restore(struct ds_config *cfg, int n) {
+  char dir[PATH_MAX], path[PATH_MAX + 32];
+  struct stat root;
+  int top = ds_layers_top(cfg->rootfs_img_path);
+  if (snapshot_precheck(cfg) < 0)
+    return -1;
+  if (n < 1 || n > top) {
+    ds_error("'%s' has no snapshot %d.", cfg->container_name, n);
+    return -1;
+  }
+
+  ds_layers_dir(cfg->rootfs_img_path, dir, sizeof(dir));
+  for (int i = top; i >= n; i--) {
+    snprintf(path, sizeof(path), "%s/%d.img", dir, i);
+    unlink(path);
+    if (i > n) {
+      layer_label_path(cfg->rootfs_img_path, i, path, sizeof(path));
+      unlink(path);
+    }
+  }
+  if (current_root_stat(cfg, &root) < 0 ||
+      layer_create(cfg->rootfs_img_path, n, &root) < 0)
+    return -1;
+  ds_log("'%s' is back at snapshot %d.", cfg->container_name, n);
   return 0;
 }

@@ -119,6 +119,10 @@ One gap: a program that asks the kernel directly through `sysinfo()` rather than
 
 The cost is that root in the container can reach the host's live sysctl tree through that pristine `/proc`, so this is a statement of trust in the container's root user. Needs `CONFIG_USER_NS`, reported by `droidspaces check` as user namespace support. For Docker inside the container, put `{"userns-remap": "default"}` in `/etc/docker/daemon.json` and restart it.
 
+### Snapshots
+
+A container on a rootfs image can be snapshotted while it is stopped: `droidspaces -n NAME snapshot [LABEL]`, `snapshots` to list them, `rollback N` to go back. A snapshot does not copy the image. It freezes what is there and puts an empty ext4 image on top for whatever is written next (`<image>.layers/N.img`, mounted as an overlayfs), so taking one is quick and costs only what changes afterwards. Rolling back to snapshot N drops everything written after it, later snapshots included. Needs `CONFIG_OVERLAY_FS` and `mke2fs`.
+
 ### Unprivileged
 
 `--unprivileged`, key `unprivileged`. Off by default. The container gets its own user namespace: uid 0 inside is uid 1000000000 on the host, and its capabilities reach only the namespaces the container owns. A process that breaks out of the container is an ordinary user on the host, where a regular container's root is the host's root.

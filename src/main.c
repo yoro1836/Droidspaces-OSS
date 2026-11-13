@@ -329,6 +329,9 @@ int main(int argc, char **argv) {
                           strcmp(discovered_cmd, "restart") == 0 ||
                           strcmp(discovered_cmd, "pid") == 0 ||
                           strcmp(discovered_cmd, "info") == 0 ||
+                          strcmp(discovered_cmd, "snapshot") == 0 ||
+                          strcmp(discovered_cmd, "snapshots") == 0 ||
+                          strcmp(discovered_cmd, "rollback") == 0 ||
                           strcmp(discovered_cmd, "enter") == 0 ||
                           strcmp(discovered_cmd, "run") == 0));
 
@@ -521,6 +524,22 @@ int main(int argc, char **argv) {
 
   if (strcmp(cmd, "info") == 0) {
     ret = show_info(&cfg, 0);
+    goto cleanup;
+  }
+
+  if (strcmp(cmd, "snapshot") == 0) {
+    ret = ds_snapshot_create(&cfg, optind + 1 < argc ? argv[optind + 1] : NULL);
+    goto cleanup;
+  }
+
+  if (strcmp(cmd, "snapshots") == 0) {
+    ret = ds_snapshot_list(&cfg);
+    goto cleanup;
+  }
+
+  if (strcmp(cmd, "rollback") == 0) {
+    ret = ds_snapshot_restore(&cfg,
+                              optind + 1 < argc ? atoi(argv[optind + 1]) : 0);
     goto cleanup;
   }
 
