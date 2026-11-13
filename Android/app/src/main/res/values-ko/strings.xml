@@ -522,4 +522,13 @@
     <string name="repo_custom_url_empty">URL은 비워둘 수 없습니다</string>
     <string name="repo_custom_url_invalid">URL은 https://로 시작해야 합니다</string>
     <string name="debugging_section">디버깅</string>
+    <string name="network_mode_ipvlan">Ipvlan (Wi-Fi 또는 유선 LAN)</string>
+    <string name="network_mode_ipvlan_short">Ipvlan</string>
+    <string name="network_mode_ipvlan_desc">Wi-Fi를 포함한 LAN에 직접 연결</string>
+    <string name="ipvlan_mode">Ipvlan 모드</string>
+    <string name="ipvlan_mode_l2">L2 (기본)</string>
+    <string name="ipvlan_mode_l3">L3</string>
+    <string name="ipvlan_mode_l2_desc">컨테이너가 다른 기기처럼 LAN에 붙고 공유기에서 주소를 받습니다.</string>
+    <string name="ipvlan_mode_l3_desc">폰을 거쳐 라우팅됩니다. 브로드캐스트와 DHCP가 없어 주소를 직접 지정해야 합니다.</string>
+    <string name="ipvlan_parent_hint">컨테이너의 eth0이 올라갈 인터페이스입니다. 보통 wlan0입니다. 컨테이너가 그 인터페이스의 MAC을 그대로 쓰므로, 공유기가 MAC만으로 주소를 나눠주면 컨테이너에 고정 주소를 지정해야 합니다.</string>
 </resources>

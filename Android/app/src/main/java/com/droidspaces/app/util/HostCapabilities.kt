@@ -36,6 +36,7 @@ data class HostCapabilities(
             "nat" -> natSupported
             "gateway" -> natSupported && has("bridge")
             "macvlan" -> has("net_ns") && flags["macvlan"] == true
+            "ipvlan" -> has("net_ns") && flags["ipvlan"] == true
             else -> true
         }
     }
@@ -70,7 +71,7 @@ data class HostCapabilities(
 
     companion object {
         private const val TAG = "HostCapabilities"
-        val ALL_NET_MODES = listOf("nat", "host", "none", "gateway", "macvlan")
+        val ALL_NET_MODES = listOf("nat", "host", "none", "gateway", "macvlan", "ipvlan")
 
         private val _state = MutableStateFlow<HostCapabilities?>(null)
 

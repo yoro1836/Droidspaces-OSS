@@ -249,14 +249,14 @@ object ValidationUtils {
         installed: List<ContainerInfo>,
         context: Context? = null
     ): MacvlanErrors {
-        if (netMode != "macvlan") return MacvlanErrors()
+        if (netMode != "macvlan" && netMode != "ipvlan") return MacvlanErrors()
         if (parent.isBlank()) {
             return MacvlanErrors(
                 parent = context?.getString(R.string.error_macvlan_parent_required) ?: "Choose the host interface"
             )
         }
         val clash = installed.firstOrNull {
-            it.name != selfName && it.netMode == "macvlan" && it.macvlanParent == parent &&
+            netMode == "macvlan" && it.name != selfName && it.netMode == "macvlan" && it.macvlanParent == parent &&
                 (it.macvlanMode == "passthru" || mode == "passthru")
         }
         return MacvlanErrors(

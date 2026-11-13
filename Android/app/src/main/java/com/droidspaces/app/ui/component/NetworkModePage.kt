@@ -69,10 +69,11 @@ import kotlinx.coroutines.delay
 import sh.calvin.reorderable.ReorderableColumn
 
 /** Network modes in the order the page lists them, most used first. */
-private val MODE_ORDER = listOf("nat", "gateway", "macvlan", "host", "none")
+private val MODE_ORDER = listOf("nat", "gateway", "macvlan", "ipvlan", "host", "none")
 
 /** The macvlan modes the backend accepts, default first. */
 private val MACVLAN_MODES = listOf("bridge", "private", "vepa", "passthru")
+private val IPVLAN_MODES = listOf("l2", "l3")
 
 private const val MAX_UPSTREAMS = 8
 private const val MAX_PORT_FORWARDS = 32
@@ -82,6 +83,7 @@ fun netModeLabel(mode: String) = when (mode) {
     "none" -> R.string.network_mode_none
     "gateway" -> R.string.network_mode_gateway
     "macvlan" -> R.string.network_mode_macvlan
+    "ipvlan" -> R.string.network_mode_ipvlan
     else -> R.string.network_mode_host
 }
 
@@ -90,6 +92,7 @@ private fun netModeDescription(mode: String) = when (mode) {
     "none" -> R.string.network_mode_none_desc
     "gateway" -> R.string.network_mode_gateway_desc
     "macvlan" -> R.string.network_mode_macvlan_desc
+    "ipvlan" -> R.string.network_mode_ipvlan_desc
     else -> R.string.network_mode_host_desc
 }
 
@@ -97,6 +100,8 @@ private fun macvlanModeName(mode: String) = when (mode) {
     "private" -> R.string.macvlan_mode_private
     "vepa" -> R.string.macvlan_mode_vepa
     "passthru" -> R.string.macvlan_mode_passthru
+    "l2" -> R.string.ipvlan_mode_l2
+    "l3" -> R.string.ipvlan_mode_l3
     else -> R.string.macvlan_mode_bridge
 }
 
@@ -104,6 +109,8 @@ private fun macvlanModeDescription(mode: String) = when (mode) {
     "private" -> R.string.macvlan_mode_private_desc
     "vepa" -> R.string.macvlan_mode_vepa_desc
     "passthru" -> R.string.macvlan_mode_passthru_desc
+    "l2" -> R.string.ipvlan_mode_l2_desc
+    "l3" -> R.string.ipvlan_mode_l3_desc
     else -> R.string.macvlan_mode_bridge_desc
 }
 
@@ -149,7 +156,7 @@ fun NetworkModePage(
     val canSave = when (draft.netMode) {
         "nat" -> collision == null && natIpValid(draft.staticNatIp)
         "gateway" -> gatewayErrors.isValid
-        "macvlan" -> macvlanErrors.isValid
+        "macvlan", "ipvlan" -> macvlanErrors.isValid
         else -> true
     }
 
@@ -176,7 +183,7 @@ fun NetworkModePage(
         when (draft.netMode) {
             "nat" -> NatSettings(draft, set, collision)
             "gateway" -> GatewaySettings(draft, set, installedContainers, selfName, gatewayErrors)
-            "macvlan" -> MacvlanSettings(draft, set, macvlanErrors)
+            "macvlan", "ipvlan" -> MacvlanSettings(draft, set, macvlanErrors)
         }
     }
 }
@@ -459,9 +466,11 @@ private fun MacvlanSettings(
 ) {
     val context = LocalContext.current
     var showPicker by rememberSaveable { mutableStateOf(false) }
+    // Ipvlan shares this page and the parent field: the hint and the mode list differ.
+    val ipvlan = state.netMode == "ipvlan"
 
     GroupHeader(context.getString(R.string.macvlan_parent), sub = true)
-    GroupIntro(context.getString(R.string.macvlan_parent_hint))
+    GroupIntro(context.getString(if (ipvlan) R.string.ipvlan_parent_hint else R.string.macvlan_parent_hint))
     // Swapping the interface card for the choose button crossfades and eases the
     // height between them, instead of the section snapping to its new size.
     AnimatedContent(
@@ -493,10 +502,11 @@ private fun MacvlanSettings(
         )
     }
 
-    GroupHeader(context.getString(R.string.macvlan_mode), sub = true)
-    val selected = state.macvlanMode.ifBlank { "bridge" }
+    val modes = if (ipvlan) IPVLAN_MODES else MACVLAN_MODES
+    GroupHeader(context.getString(if (ipvlan) R.string.ipvlan_mode else R.string.macvlan_mode), sub = true)
+    val selected = state.macvlanMode.takeIf { it in modes } ?: modes.first()
     SettingsGroup(Modifier.selectableGroup()) {
-        MACVLAN_MODES.forEachIndexed { i, mode ->
+        modes.forEachIndexed { i, mode ->
             if (i > 0) GroupDivider()
             RadioRow(
                 title = context.getString(macvlanModeName(mode)),

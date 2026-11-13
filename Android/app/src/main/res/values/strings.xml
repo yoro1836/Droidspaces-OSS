@@ -776,4 +776,13 @@
     <string name="upstream_max">Up to %1$d interfaces. Untick one to add another.</string>
     <string name="bind_path_separator">Paths cannot contain , or :</string>
     <string name="keep_editing">Keep editing</string>
+    <string name="network_mode_ipvlan">Ipvlan (Wi-Fi or wired LAN)</string>
+    <string name="network_mode_ipvlan_short">Ipvlan</string>
+    <string name="network_mode_ipvlan_desc">Straight onto the LAN, Wi-Fi included</string>
+    <string name="ipvlan_mode">Ipvlan Mode</string>
+    <string name="ipvlan_mode_l2">L2 (Default)</string>
+    <string name="ipvlan_mode_l3">L3</string>
+    <string name="ipvlan_mode_l2_desc">The container is on the LAN like any other device and takes its address from the router.</string>
+    <string name="ipvlan_mode_l3_desc">Routed through the phone: no broadcasts or DHCP, the address is set by hand.</string>
+    <string name="ipvlan_parent_hint">The interface the container\'s eth0 sits on, usually wlan0. The container uses that interface\'s own MAC, so a router that hands out addresses by MAC alone needs a static address in the container.</string>
 </resources>

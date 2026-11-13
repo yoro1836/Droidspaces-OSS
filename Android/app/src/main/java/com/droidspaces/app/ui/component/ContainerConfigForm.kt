@@ -137,7 +137,7 @@ fun ContainerConfigForm(
             summary = networkSummary(state),
             error = when (state.netMode) {
                 "gateway" -> gatewayErrors.container ?: gatewayErrors.iface ?: gatewayErrors.net ?: gatewayErrors.bridge
-                "macvlan" -> macvlanErrors.parent
+                "macvlan", "ipvlan" -> macvlanErrors.parent
                 "nat" -> collisionContainer?.let { context.getString(R.string.error_ip_collision, it.name) }
                 else -> null
             },
@@ -539,7 +539,7 @@ private fun networkSummary(state: ContainerConfigState): String? {
                 add(res.getQuantityString(R.plurals.port_rule_count, state.portForwards.size, state.portForwards.size))
         }.joinToString(", ").ifEmpty { null }
         "gateway" -> state.gatewayContainer.takeIf { it.isNotEmpty() }?.let { context.getString(R.string.network_summary_gateway, it) }
-        "macvlan" -> state.macvlanParent.takeIf { it.isNotEmpty() }?.let { context.getString(R.string.network_summary_macvlan, it) }
+        "macvlan", "ipvlan" -> state.macvlanParent.takeIf { it.isNotEmpty() }?.let { context.getString(R.string.network_summary_macvlan, it) }
         else -> null
     }
 }
