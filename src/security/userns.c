@@ -131,11 +131,7 @@ static int shift_one(const char *path, const struct stat *st, int type,
     return 0;
 
   /* chown also drops file capabilities, which is what newuidmap and ping
-   * run on. Put them back afterwards, and name the container's root as their
-   * owner (revision 3) on the way up: the kernel ignores capabilities that
-   * belong to a root other than the caller's. Layout per
-   * linux/capability.h: a little-endian magic word with the revision in its
-   * top byte, 16 bytes of sets, then the owner in revision 3 only. */
+   * run on. Carry them across. */
   unsigned char cap[24];
   ssize_t cap_len = S_ISREG(st->st_mode)
                         ? lgetxattr(path, "security.capability", cap, 24)
@@ -145,13 +141,9 @@ static int shift_one(const char *path, const struct stat *st, int type,
     ds_warn("[USERNS] chown %s: %s", path, strerror(errno));
     return 0;
   }
-  if (cap_len >= 20 && (cap[3] == 2 || cap[3] == 3)) {
-    uint32_t owner = htole32(DS_USERNS_BASE);
-    cap[3] = shift_up ? 3 : 2;
-    memcpy(cap + 20, &owner, 4);
-    if (lsetxattr(path, "security.capability", cap, shift_up ? 24 : 20, 0) < 0)
-      ds_warn("[USERNS] capabilities of %s: %s", path, strerror(errno));
-  }
+  if (cap_len > 0 &&
+      lsetxattr(path, "security.capability", cap, (size_t)cap_len, 0) < 0)
+    ds_warn("[USERNS] capabilities of %s: %s", path, strerror(errno));
   /* chown drops the setuid and setgid bits of a regular file. */
   if (S_ISREG(st->st_mode) && (st->st_mode & (S_ISUID | S_ISGID)))
     chmod(path, st->st_mode & 07777);
