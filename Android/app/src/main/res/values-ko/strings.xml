@@ -188,7 +188,7 @@
     <string name="allow_userns">사용자 네임스페이스 허용</string>
     <string name="allow_userns_description">Flatpak/bwrap/Firefox에 필요한 비특권 사용자 네임스페이스를 허용합니다. 단, 패치되지 않은 커널에서는 Fragnesia와 같은 특정 취약점에 노출될 수 있습니다</string>
     <string name="unprivileged">비특권 컨테이너</string>
-    <string name="unprivileged_description">컨테이너를 사용자 네임스페이스에서 실행합니다. 컨테이너 안의 root가 폰에서는 일반 사용자가 됩니다. 하드웨어 접근, GPU, Android 저장소, 휘발성 모드, cgroup v1은 꺼집니다. idmapped 마운트가 없는 커널에서는 처음 시작할 때 rootfs의 파일 소유자를 다시 쓰므로 시간이 걸릴 수 있습니다.</string>
+    <string name="unprivileged_description">컨테이너를 사용자 네임스페이스에서 실행합니다. 컨테이너 안의 root가 폰에서는 일반 사용자가 됩니다. 하드웨어 접근, Android 저장소, 휘발성 모드, cgroup v1은 꺼집니다. GPU 모드는 폰의 장치 노드를 그대로 빌려 쓰므로, 폰이 모든 사용자에게 열어둔 노드만 동작합니다. idmapped 마운트가 없는 커널에서는 처음 시작할 때 rootfs의 파일 소유자를 다시 쓰므로 시간이 걸릴 수 있습니다.</string>
     <string name="unprivileged_description_not_supported">사용할 수 없습니다. 사용자 네임스페이스(CONFIG_USER_NS)와 cgroup v2가 필요합니다.</string>
     <string name="allow_userns_description_not_supported">지원되지 않음. 커널에서 CONFIG_USER_NS가 활성화되어 있지 않습니다</string>
     <string name="run_at_boot">부팅 시 실행</string>

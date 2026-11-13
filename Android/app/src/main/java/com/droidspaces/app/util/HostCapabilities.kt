@@ -47,20 +47,18 @@ data class HostCapabilities(
      */
     fun coerce(s: ContainerConfigState): ContainerConfigState {
         val mode = if (s.netMode in supportedNetModes()) s.netMode else "host"
-        // Root in a user namespace cannot create device nodes, mount an overlay
-        // over the host's files or take a cgroup v1 hierarchy, so those go.
+        // Root in a user namespace cannot have the host's devtmpfs, mount an
+        // overlay over the host's files or take a cgroup v1 hierarchy, so those go.
         val unprivileged = s.unprivileged && has("user_ns") && has("cgroup2")
         val hwAccess = s.enableHwAccess && has("devtmpfs") && !unprivileged
         // Anland needs the GPU nodes and takes the display path Termux:X11 would use.
-        val gpuMode = s.enableGpuMode && !unprivileged
-        val anland = s.enableAnland && has("anland") && (hwAccess || gpuMode)
+        val anland = s.enableAnland && has("anland") && (hwAccess || s.enableGpuMode)
         return s.copy(
             netMode = mode,
             enableHwAccess = hwAccess,
             volatileMode = s.volatileMode && has("overlayfs") && !unprivileged,
             allowSandboxing = s.allowSandboxing && has("user_ns"),
             unprivileged = unprivileged,
-            enableGpuMode = gpuMode,
             enableAndroidStorage = s.enableAndroidStorage && !unprivileged,
             forceCgroupv1 = s.forceCgroupv1 && has("cgroup2") && !unprivileged,
             enableAnland = anland,

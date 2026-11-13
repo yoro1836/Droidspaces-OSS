@@ -235,7 +235,7 @@
     <string name="allow_userns">Allow Sandboxing</string>
     <string name="allow_userns_description">Lets unprivileged Docker, Podman, Flatpak, bwrap and browser sandboxes run inside the container. This weakens isolation, so enable it only for containers you trust.</string>
     <string name="unprivileged">Unprivileged container</string>
-    <string name="unprivileged_description">Runs the container in a user namespace, so root inside is an ordinary user on the phone. Turns off Hardware Access, GPU, Android storage, volatile mode and cgroup v1. On kernels without idmapped mounts the first start rewrites the file owners in the rootfs, which can take a while.</string>
+    <string name="unprivileged_description">Runs the container in a user namespace, so root inside is an ordinary user on the phone. Turns off Hardware Access, Android storage, volatile mode and cgroup v1. GPU mode uses the phone\'s own device nodes, so it only works for nodes the phone leaves open to every user. On kernels without idmapped mounts the first start rewrites the file owners in the rootfs, which can take a while.</string>
     <string name="unprivileged_description_not_supported">Not available. It needs user namespaces (CONFIG_USER_NS) and cgroup v2.</string>
     <string name="allow_userns_description_not_supported">Not available. This kernel has no user namespace support (CONFIG_USER_NS).</string>
     <string name="run_at_boot">Run at Boot</string>

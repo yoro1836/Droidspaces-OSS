@@ -377,7 +377,6 @@ int ds_userns_check_config(struct ds_config *cfg) {
     const char *what;
   } clash[] = {
       {cfg->hw_access, "--hw-access"},
-      {cfg->gpu_mode, "--gpu"},
       {cfg->volatile_mode, "--volatile"},
       {cfg->force_cgroupv1, "--force-cgroupv1"},
       {cfg->android_storage, "--enable-android-storage"},

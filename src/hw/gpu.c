@@ -100,6 +100,10 @@ static const char *gpu_static_devices[] = {
  * the staging tmpfs and bound over the path, so the singleton is never
  * written.  staging == NULL means /dev is our own tmpfs and mknod is direct.
  */
+/* Set once mknod is refused: every node from then on is a bind of the
+ * host's, see mirror_gpu_node(). */
+static int nodes_are_borrowed;
+
 static void mirror_gpu_node(const char *host_path, const char *dev_path,
                             const char *staging) {
   if (strncmp(host_path, "/dev/", 5) != 0)
@@ -156,6 +160,9 @@ static void mirror_gpu_node(const char *host_path, const char *dev_path,
   }
 
   if (tgt_exists) {
+    /* A borrowed node is the host's own inode, leave it as the host has it. */
+    if (S_ISCHR(tgt_st.st_mode) && nodes_are_borrowed)
+      return;
     if (S_ISCHR(tgt_st.st_mode)) {
       /* Reached twice (static list and prefix scan). Just re-own it. */
       if (chown(tgt, 0, DS_GPU_UNIFIED_GID) < 0)
@@ -174,7 +181,21 @@ static void mirror_gpu_node(const char *host_path, const char *dev_path,
     }
   }
 
-  if (mknod(tgt, S_IFCHR | 0660, host_st.st_rdev) < 0) {
+  if (mknod(tgt, S_IFCHR | 0660, host_st.st_rdev) < 0 && errno == EPERM) {
+    /* An unprivileged container: root in a user namespace may not create
+     * device nodes. Borrow the host's, with the host's permissions, so only
+     * a node the host leaves open to everyone is usable in there. */
+    nodes_are_borrowed = 1;
+    if (bind_mount(host_path, tgt) < 0)
+      ds_warn("[GPU] bind %s over %s: %s", host_path, tgt, strerror(errno));
+    else if ((host_st.st_mode & 0006) != 0006)
+      ds_warn("[GPU] %s is mode %o on the host, the container's users cannot "
+              "open it",
+              host_path, (unsigned)(host_st.st_mode & 0777));
+    else
+      ds_log("[GPU] Borrowed node: %s", tgt);
+    return;
+  } else if (access(tgt, F_OK) != 0) {
     ds_warn("[GPU] mknod %s (%d:%d) failed: %s", tgt,
             (int)major(host_st.st_rdev), (int)minor(host_st.st_rdev),
             strerror(errno));
