@@ -257,7 +257,12 @@ int ds_config_load_file(FILE *f, struct ds_config *cfg) {
                      sizeof(cfg->gateway_lan_ifname));
       else
         ds_warn("config: ignoring too-long gateway_lan_ifname '%s'", val);
-    } else if (strcmp(key, "macvlan_parent") == 0) {
+    } else if (strcmp(key, "ipvlan_mode") == 0) {
+      cfg->ipvlan_l3 = strcmp(val, "l3") == 0;
+      if (!cfg->ipvlan_l3 && strcmp(val, "l2") != 0)
+        ds_warn("config: unknown ipvlan_mode '%s' - using l2", val);
+    } else if (strcmp(key, "macvlan_parent") == 0 ||
+               strcmp(key, "ipvlan_parent") == 0) {
       if (strlen(val) < IFNAMSIZ)
         safe_strncpy(cfg->macvlan_parent, val, sizeof(cfg->macvlan_parent));
       else

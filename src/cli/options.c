@@ -162,6 +162,8 @@ const struct option long_options[] = {
     {"gateway-bridge", required_argument, 0, 277},
     {"macvlan-parent", required_argument, 0, 281},
     {"macvlan-mode", required_argument, 0, 282},
+    {"ipvlan-parent", required_argument, 0, 281}, /* shares the field */
+    {"ipvlan-mode", required_argument, 0, 286},
     {"reset", no_argument, 0, 256},
     {"json", no_argument, 0, 265},
     {"memory", required_argument, 0, 266},
@@ -293,10 +295,17 @@ int ds_apply_cli_overrides(int argc, char **argv, struct ds_config *cfg,
       break;
     case 281:
       if (strlen(optarg) >= IFNAMSIZ) {
-        ds_error("--macvlan-parent interface name is too long: %s", optarg);
+        ds_error("Parent interface name is too long: %s", optarg);
         return -1;
       }
       safe_strncpy(cfg->macvlan_parent, optarg, sizeof(cfg->macvlan_parent));
+      break;
+    case 286:
+      cfg->ipvlan_l3 = strcmp(optarg, "l3") == 0;
+      if (!cfg->ipvlan_l3 && strcmp(optarg, "l2") != 0) {
+        ds_error("Unknown --ipvlan-mode '%s'. Valid options: l2, l3", optarg);
+        return -1;
+      }
       break;
     case 282:
       cfg->macvlan_mode = ds_parse_macvlan_mode(optarg);
@@ -355,7 +364,7 @@ int ds_apply_cli_overrides(int argc, char **argv, struct ds_config *cfg,
       int mode = ds_parse_net_mode(optarg);
       if (mode < 0) {
         ds_error("Unknown network mode: '%s'. Valid options: host, nat, none, "
-                 "gateway, macvlan",
+                 "gateway, macvlan, ipvlan",
                  optarg);
         return -1;
       }

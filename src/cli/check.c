@@ -348,6 +348,9 @@ int check_requirements_detailed(int json_output) {
   print_ds_check("veth", "Veth pair support",
                  "Required for --net=nat; no fallback exists if absent",
                  nat >= 0, "OPT");
+  print_ds_check("ipvlan", "Ipvlan support",
+                 "CONFIG_IPVLAN; required for --net=ipvlan",
+                 is_root && ds_nl_probe_ipvlan(), "OPT");
   print_ds_check("macvlan", "Macvlan support",
                  "CONFIG_MACVLAN; required for --net=macvlan",
                  is_root && ds_nl_probe_macvlan(), "OPT");

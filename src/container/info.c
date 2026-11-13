@@ -142,6 +142,9 @@ int show_info(struct ds_config *cfg, int trust_cfg_pid) {
       ds_json_str("gateway_iface",
                   cfg->gateway_lan_ifname[0] ? cfg->gateway_lan_ifname : "eth1",
                   &first);
+    } else if (cfg->net_mode == DS_NET_IPVLAN) {
+      ds_json_str("ipvlan_parent", cfg->macvlan_parent, &first);
+      ds_json_str("ipvlan_mode", cfg->ipvlan_l3 ? "l3" : "l2", &first);
     } else if (cfg->net_mode == DS_NET_MACVLAN) {
       ds_json_str("macvlan_parent", cfg->macvlan_parent, &first);
       ds_json_str("macvlan_mode", ds_macvlan_mode_name(cfg->macvlan_mode),
@@ -254,6 +257,9 @@ int show_info(struct ds_config *cfg, int trust_cfg_pid) {
       feat_count++;
     }
 
+    if (cfg->net_mode == DS_NET_IPVLAN)
+      printf("  Ipvlan: %s (%s)\n", cfg->macvlan_parent,
+             cfg->ipvlan_l3 ? "l3" : "l2");
     if (cfg->net_mode == DS_NET_MACVLAN) {
       printf("  Macvlan: %s (%s)\n", cfg->macvlan_parent,
              ds_macvlan_mode_name(cfg->macvlan_mode));

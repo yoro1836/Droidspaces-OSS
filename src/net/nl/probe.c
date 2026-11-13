@@ -131,15 +131,17 @@ int ds_nl_probe_nat_capability(char *reason, size_t rsz) {
   }
 }
 
-/* Can this kernel make a macvlan? It needs an Ethernet parent and the phone
- * may have none plugged in, so the probe brings its own: a veth, which the NAT
- * probe already requires. A veth left behind by a probe that crashed is still a
- * fine parent, and a macvlan left on it is proof enough. A pass is remembered
- * for the boot, like the NAT probe's, since every start asks. */
-int ds_nl_probe_macvlan(void) {
+/* Can this kernel make a macvlan, or an ipvlan? It needs an Ethernet parent
+ * and the phone may have none plugged in, so the probe brings its own: a veth,
+ * which the NAT probe already requires. A veth left behind by a probe that
+ * crashed is still a fine parent, and a link left on it is proof enough. A
+ * pass is remembered for the boot, like the NAT probe's, since every start
+ * asks. */
+static int probe_vlan_kind(int ipvlan) {
   char boot_id[64] = "", seen[64] = "", stamp[PATH_MAX];
   read_file("/proc/sys/kernel/random/boot_id", boot_id, sizeof(boot_id));
-  snprintf(stamp, sizeof(stamp), "%s/macvlan_caps", get_net_dir());
+  snprintf(stamp, sizeof(stamp), "%s/%s_caps", get_net_dir(),
+           ipvlan ? "ipvlan" : "macvlan");
   if (boot_id[0] && read_file(stamp, seen, sizeof(seen)) > 0 &&
       strcmp(seen, boot_id) == 0)
     return 1;
@@ -149,9 +151,10 @@ int ds_nl_probe_macvlan(void) {
     return 0;
   static const uint8_t mac[6] = {0x02, 0, 0, 0, 0, 0x01};
   int own = ds_nl_create_veth(ctx, "ds-cap-mh0", "ds-cap-mp0") == 0;
-  int ret = ds_nl_create_macvlan(ctx, "ds-cap-mv0",
-                                 ds_nl_get_ifindex(ctx, "ds-cap-mh0"), -1,
-                                 MACVLAN_MODE_BRIDGE, mac);
+  int parent = ds_nl_get_ifindex(ctx, "ds-cap-mh0");
+  int ret = ipvlan ? ds_nl_create_ipvlan(ctx, "ds-cap-mv0", parent, -1, 0)
+                   : ds_nl_create_macvlan(ctx, "ds-cap-mv0", parent, -1,
+                                          MACVLAN_MODE_BRIDGE, mac);
   if (ret == 0)
     ds_nl_del_link(ctx, "ds-cap-mv0");
   if (own)
@@ -163,3 +166,6 @@ int ds_nl_probe_macvlan(void) {
     write_file(stamp, boot_id);
   return ok;
 }
+
+int ds_nl_probe_macvlan(void) { return probe_vlan_kind(0); }
+int ds_nl_probe_ipvlan(void) { return probe_vlan_kind(1); }

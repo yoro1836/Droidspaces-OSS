@@ -51,11 +51,13 @@ static int macvlan_create(struct ds_config *cfg, const char *netns,
 
   int fd = open_container_netns(netns);
   ds_nl_ctx_t *ctx = fd >= 0 ? ds_nl_open() : NULL;
-  int ret = ctx ? ds_nl_create_macvlan(ctx, tmp, parent, fd,
+  int ret = !ctx ? -errno
+            : cfg->net_mode == DS_NET_IPVLAN
+                ? ds_nl_create_ipvlan(ctx, tmp, parent, fd, cfg->ipvlan_l3)
+                : ds_nl_create_macvlan(ctx, tmp, parent, fd,
                                        cfg->macvlan_mode ? cfg->macvlan_mode
                                                          : MACVLAN_MODE_BRIDGE,
-                                       mac)
-                : -errno;
+                                       mac);
   if (ctx)
     ds_nl_close(ctx);
   if (fd >= 0)
@@ -106,12 +108,15 @@ static int macvlan_parent_taken(const struct ds_config *cfg, char *who,
  * reloaded the config it will actually boot with. A parent that is merely
  * unplugged is fine: eth0 follows when it is plugged in. Returns 0 or -1. */
 int ds_net_macvlan_check(const struct ds_config *cfg) {
+  int ipvlan = cfg->net_mode == DS_NET_IPVLAN;
+  const char *kind = ipvlan ? "ipvlan" : "macvlan";
   if (!cfg->macvlan_parent[0]) {
-    ds_error("--net=macvlan requires --macvlan-parent=<interface>.");
+    ds_error("--net=%s requires --%s-parent=<interface>.", kind, kind);
     return -1;
   }
-  if (!ds_nl_probe_macvlan()) {
-    ds_error("--net=macvlan is not supported by this kernel (CONFIG_MACVLAN).");
+  if (ipvlan ? !ds_nl_probe_ipvlan() : !ds_nl_probe_macvlan()) {
+    ds_error("--net=%s is not supported by this kernel (CONFIG_%s).", kind,
+             ipvlan ? "IPVLAN" : "MACVLAN");
     return -1;
   }
 
@@ -119,13 +124,13 @@ int ds_net_macvlan_check(const struct ds_config *cfg) {
   snprintf(path, sizeof(path), "/sys/class/net/%s/type", cfg->macvlan_parent);
   if (read_file(path, type, sizeof(type)) > 0 &&
       (atoi(type) != 1 || strcmp(cfg->macvlan_parent, "lo") == 0)) {
-    ds_error("%s is not an Ethernet interface, so it cannot carry a macvlan.",
-             cfg->macvlan_parent);
+    ds_error("%s is not an Ethernet interface, so it cannot carry a %s.",
+             cfg->macvlan_parent, kind);
     return -1;
   }
 
   char who[256];
-  if (macvlan_parent_taken(cfg, who, sizeof(who))) {
+  if (!ipvlan && macvlan_parent_taken(cfg, who, sizeof(who))) {
     ds_error("%s is in use by the running container '%s': in passthru mode a "
              "network interface takes one container only.",
              cfg->macvlan_parent, who);
@@ -165,18 +170,21 @@ int ds_net_macvlan_wire(struct ds_config *cfg, pid_t init_pid, int at_start) {
   }
 
   if (ret != last) {
+    int ipvlan = cfg->net_mode == DS_NET_IPVLAN;
+    const char *tag = ipvlan ? "Ipvlan" : "Macvlan";
     if (ret == 1)
-      ds_log("[NET] Macvlan: eth0 on %s (%s mode)", cfg->macvlan_parent,
-             ds_macvlan_mode_name(cfg->macvlan_mode));
+      ds_log("[NET] %s: eth0 on %s (%s mode)", tag, cfg->macvlan_parent,
+             ipvlan ? (cfg->ipvlan_l3 ? "l3" : "l2")
+                    : ds_macvlan_mode_name(cfg->macvlan_mode));
     else if (ret == 0)
-      ds_warn("[NET] Macvlan: %s is not present - eth0 comes up once it is",
+      ds_warn("[NET] %s: %s is not present - eth0 comes up once it is", tag,
               cfg->macvlan_parent);
     else
-      ds_warn("[NET] Macvlan: could not create eth0 on %s: %s%s",
+      ds_warn("[NET] %s: could not create eth0 on %s: %s%s", tag,
               cfg->macvlan_parent, strerror(-ret),
-              ret == -EINVAL ? " (another container may hold it in passthru "
-                               "mode)"
-                             : "");
+              ret == -EINVAL && !ipvlan
+                  ? " (another container may hold it in passthru mode)"
+                  : "");
   }
   return last = ret;
 }

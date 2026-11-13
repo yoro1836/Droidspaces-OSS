@@ -77,6 +77,12 @@ static void ds_config_serialize_known(FILE *f, struct ds_config *cfg) {
       fprintf(f, "gateway_lan_ifname=%s\n", cfg->gateway_lan_ifname);
   }
 
+  if (cfg->net_mode == DS_NET_IPVLAN) {
+    if (cfg->macvlan_parent[0])
+      fprintf(f, "ipvlan_parent=%s\n", cfg->macvlan_parent);
+    if (cfg->ipvlan_l3)
+      fprintf(f, "ipvlan_mode=l3\n");
+  }
   if (cfg->net_mode == DS_NET_MACVLAN) {
     if (cfg->macvlan_parent[0])
       fprintf(f, "macvlan_parent=%s\n", cfg->macvlan_parent);

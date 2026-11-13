@@ -17,6 +17,7 @@ enum ds_net_mode {
   DS_NET_NONE,    /* isolated netns with loopback only          */
   DS_NET_GATEWAY, /* isolated netns attached to gateway LAN     */
   DS_NET_MACVLAN, /* isolated netns, macvlan on a host NIC      */
+  DS_NET_IPVLAN,  /* the same with the NIC's own MAC, for Wi-Fi  */
 };
 
 /* Bind mount entry */
@@ -71,20 +72,23 @@ typedef enum {
 /* Container configuration - replaces all global variables */
 struct ds_config {
   /* Paths */
-  char rootfs_path[PATH_MAX];        /* --rootfs=  */
-  char rootfs_img_path[PATH_MAX];    /* --rootfs-img= */
-  char pidfile[PATH_MAX];            /* Pids/<name>.pid */
-  char container_name[256];          /* --name= (mandatory) */
-  char hostname[256];                /* --hostname= or container_name */
-  char dns_servers[1024];            /* --dns= (comma/space separated) */
-  enum ds_net_mode net_mode;         /* --net=host|nat|none|gateway|macvlan */
+  char rootfs_path[PATH_MAX];     /* --rootfs=  */
+  char rootfs_img_path[PATH_MAX]; /* --rootfs-img= */
+  char pidfile[PATH_MAX];         /* Pids/<name>.pid */
+  char container_name[256];       /* --name= (mandatory) */
+  char hostname[256];             /* --hostname= or container_name */
+  char dns_servers[1024];         /* --dns= (comma/space separated) */
+  enum ds_net_mode net_mode; /* --net=host|nat|none|gateway|macvlan|ipvlan */
   char dns_server_content[1024];     /* In-memory DNS config for boot */
   char gateway_container[256];       /* --gateway=NAME for gateway mode */
   char gateway_net[64];              /* --gateway-net=NAME (default: lan) */
   char gateway_bridge[IFNAMSIZ];     /* optional host bridge name */
   char gateway_lan_ifname[IFNAMSIZ]; /* ifname inside gateway (default: eth1) */
-  char macvlan_parent[IFNAMSIZ];     /* --macvlan-parent= host NIC */
-  uint32_t macvlan_mode;             /* MACVLAN_MODE_*, 0 = bridge */
+  /* --macvlan-parent= or --ipvlan-parent= host NIC: one field, a container
+   * is in one of the two modes. */
+  char macvlan_parent[IFNAMSIZ];
+  int ipvlan_l3;         /* --ipvlan-mode=l3, l2 otherwise */
+  uint32_t macvlan_mode; /* MACVLAN_MODE_*, 0 = bridge */
 
   /* UUID for PID discovery */
   char uuid[DS_UUID_LEN + 1];

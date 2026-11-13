@@ -197,6 +197,8 @@ int ds_nl_create_bridge(ds_nl_ctx_t *ctx, const char *name);
 int ds_nl_create_veth(ds_nl_ctx_t *ctx, const char *host, const char *peer);
 int ds_nl_create_macvlan(ds_nl_ctx_t *ctx, const char *name, int parent_index,
                          int netns_fd, uint32_t mode, const uint8_t mac[6]);
+int ds_nl_create_ipvlan(ds_nl_ctx_t *ctx, const char *name, int parent_index,
+                        int netns_fd, int l3);
 int ds_nl_create_veth_in(ds_nl_ctx_t *ctx, const char *host, const char *peer,
                          int peer_netns_fd, const uint8_t *peer_mac);
 int ds_nl_set_master(ds_nl_ctx_t *ctx, const char *ifname, const char *master);
@@ -217,8 +219,9 @@ int ds_nl_count_bridge_members_with_prefix(ds_nl_ctx_t *ctx, const char *bridge,
 int ds_nl_list_ifaces(ds_nl_ctx_t *ctx, char names[][IFNAMSIZ], int max);
 
 /* nl/probe.c */
-/* 1 if the kernel can create a macvlan, cached per boot */
+/* 1 if the kernel can create a macvlan / an ipvlan, cached per boot */
 int ds_nl_probe_macvlan(void);
+int ds_nl_probe_ipvlan(void);
 
 /* Kernel capability probe - call before any NAT setup */
 int ds_nl_probe_nat_capability(char *reason, size_t rsz);
